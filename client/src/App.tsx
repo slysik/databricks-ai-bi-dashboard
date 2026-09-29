@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider, NavLink, Outlet, useSearchParams } from 'react-router';
+import { createBrowserRouter, RouterProvider, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -6,20 +6,35 @@ import {
   AlertDescription,
   Badge,
   BarChart,
-  Button,
   Empty,
   EmptyDescription,
   EmptyHeader,
   EmptyTitle,
   LineChart,
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
   Skeleton,
-  useIsMobile,
+  Avatar,
+  AvatarFallback,
+  Kbd,
+  Sidebar,
+  SidebarContent,
+  SidebarFooter,
+  SidebarGroup,
+  SidebarGroupContent,
+  SidebarGroupLabel,
+  SidebarHeader,
+  SidebarInset,
+  SidebarMenu,
+  SidebarMenuBadge,
+  SidebarMenuButton,
+  SidebarMenuItem,
+  SidebarProvider,
+  SidebarRail,
+  SidebarTrigger,
+  ToggleGroup,
+  ToggleGroupItem,
+  Toaster,
 } from '@databricks/appkit-ui/react';
-import { Activity, BarChart3, Bot, Code2, Filter, Gauge, Menu, Pencil, RotateCcw, ShieldAlert, Users, WalletCards, Zap } from 'lucide-react';
+import { Activity, BarChart3, Bot, Code2, FileText, Filter, Gauge, LayoutGrid, Pencil, RotateCcw, Settings, ShieldAlert, Users, WalletCards, Zap } from 'lucide-react';
 
 type QueryResult = Record<string, unknown>;
 function usePulseQuery(key: string, filters: Record<string, string> = {}) {
@@ -30,75 +45,25 @@ function usePulseQuery(key: string, filters: Record<string, string> = {}) {
   return { data, error, loading: !data && !error };
 }
 
-const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `px-3 py-1.5 rounded-md text-sm font-medium transition-colors ${
-    isActive
-      ? 'bg-primary text-primary-foreground'
-      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-  }`;
-
-const mobileNavLinkClass = ({ isActive }: { isActive: boolean }) =>
-  `block px-3 py-2 rounded-md text-sm font-medium transition-colors ${
-    isActive
-      ? 'bg-primary text-primary-foreground'
-      : 'text-muted-foreground hover:bg-muted hover:text-foreground'
-  }`;
-
-type NavLinkClassFn = (props: { isActive: boolean }) => string;
-
-function NavLinks({ className, linkClass, onClick }: { className?: string; linkClass: NavLinkClassFn; onClick?: () => void }) {
-  return (
-    <nav className={className}>
-      <NavLink to="/" end className={linkClass} onClick={onClick}>
-        Executive pulse
-      </NavLink>
-      <NavLink to="/ask" className={linkClass} onClick={onClick}>
-        Ask Pulse AI
-      </NavLink>
-    </nav>
-  );
-}
-
+type Tone='tonal'|'neutral'|'dark';
+function setDocumentTone(tone:Tone){document.documentElement.dataset.tone=tone==='dark'?'tonal':tone;document.documentElement.classList.toggle('dark',tone==='dark');try{localStorage.setItem('pulse-tone',tone)}catch{/* storage can be disabled */}}
 function Layout() {
-  const isMobile = useIsMobile();
-  const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const identity = usePulseQuery('identity');
   const user = identity.data?.[0];
+  const location=useLocation(); const navigate=useNavigate();
+  const [tone,setTone]=useState<Tone>(()=>{try{return (localStorage.getItem('pulse-tone') as Tone)||'tonal'}catch{return 'tonal'}});
+  useEffect(()=>setDocumentTone(tone),[tone]);
+  useEffect(()=>{const onKey=(e:KeyboardEvent)=>{if((e.metaKey||e.ctrlKey)&&e.key.toLowerCase()==='k'){e.preventDefault();navigate('/ask')}};addEventListener('keydown',onKey);return()=>removeEventListener('keydown',onKey)},[navigate]);
+  const email=String(user?.email||user?.display_name||'Signed-in user');
+  const routes=[['/','Executive Dashboard',LayoutGrid],['/reports','Custom Reports',FileText],['/observability','Observability',Activity]] as const;
 
   return (
-    <div className="min-h-screen bg-background flex flex-col">
-      <header className="pulse-header px-4 md:px-8 py-3 flex items-center gap-5">
-        <div className="brand-mark"><Zap size={18} fill="currentColor" /></div>
-        <div><h1 className="text-lg font-semibold">Pulse</h1><p className="brand-sub">Executive Energy Intelligence</p></div>
-        {/* Desktop nav — hidden below md breakpoint */}
-        <NavLinks className="hidden md:flex gap-1" linkClass={navLinkClass} />
-        {/* Mobile nav — visible below md breakpoint */}
-        <div className="ml-auto hidden md:flex items-center gap-2">
-          <Badge variant="secondary">{String(user?.display_name || user?.email || 'Signed-in user')}</Badge>
-          <span className="auth-note">Signed in · governed app access</span>
-        </div>
-        <div className="ml-auto md:hidden">
-          {/* Gate on isMobile so the portaled sheet can't linger on desktop
-              (replaces a set-state-in-effect reset). */}
-          <Sheet open={mobileNavOpen && isMobile} onOpenChange={setMobileNavOpen}>
-            <Button variant="ghost" size="icon" onClick={() => setMobileNavOpen(true)}>
-              <Menu className="h-5 w-5" />
-              <span className="sr-only">Open navigation</span>
-            </Button>
-            <SheetContent side="left">
-              <SheetHeader>
-                <SheetTitle>Navigation</SheetTitle>
-              </SheetHeader>
-              <NavLinks className="flex flex-col gap-1" linkClass={mobileNavLinkClass} onClick={() => setMobileNavOpen(false)} />
-            </SheetContent>
-          </Sheet>
-        </div>
-      </header>
-
-      <main className="flex-1 p-4 md:p-8">
-        <Outlet />
-      </main>
-    </div>
+    <SidebarProvider defaultOpen>
+      <Sidebar collapsible="icon" variant="sidebar"><SidebarHeader><div className="pulse-brand"><div className="brand-mark"><Zap size={18} fill="currentColor"/></div><div className="brand-copy"><b>Pulse</b><small>ENERGY INTELLIGENCE</small></div></div><SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild tooltip="Ask Pulse AI" className="sidebar-ask"><NavLink to="/ask"><Bot/><span>Ask Pulse AI</span><Kbd>⌘K</Kbd></NavLink></SidebarMenuButton></SidebarMenuItem></SidebarMenu></SidebarHeader>
+      <SidebarContent><SidebarGroup><SidebarGroupLabel>Workspace</SidebarGroupLabel><SidebarGroupContent><SidebarMenu>{routes.map(([to,label,Icon])=><SidebarMenuItem key={to}><SidebarMenuButton asChild tooltip={label} isActive={to==='/'?location.pathname==='/':location.pathname.startsWith(to)}><NavLink to={to}><Icon/><span>{label}</span></NavLink></SidebarMenuButton>{to==='/reports'&&<SidebarMenuBadge>0</SidebarMenuBadge>}</SidebarMenuItem>)}</SidebarMenu></SidebarGroupContent></SidebarGroup></SidebarContent>
+      <SidebarFooter><SidebarMenu><SidebarMenuItem><SidebarMenuButton asChild tooltip="Settings" isActive={location.pathname==='/settings'}><NavLink to="/settings"><Settings/><span>Settings</span></NavLink></SidebarMenuButton></SidebarMenuItem></SidebarMenu><div className="sidebar-user"><Avatar><AvatarFallback>{email.slice(0,2).toUpperCase()}</AvatarFallback></Avatar><div><b>{email}</b><small>Queries run as app service principal</small></div></div></SidebarFooter><SidebarRail/></Sidebar>
+      <SidebarInset><header className="pulse-topbar"><SidebarTrigger/><h1>{location.pathname.startsWith('/reports')?'Custom Reports':location.pathname==='/observability'?'Observability':location.pathname==='/settings'?'Settings':location.pathname==='/ask'?'Ask Pulse AI':'Executive Dashboard'}</h1><span className="top-fresh"><i/> Gold freshness from governed query</span><ToggleGroup type="single" value={tone} onValueChange={v=>v&&setTone(v as Tone)}><ToggleGroupItem value="tonal">Tonal</ToggleGroupItem><ToggleGroupItem value="neutral">Neutral</ToggleGroupItem><ToggleGroupItem value="dark">Dark</ToggleGroupItem></ToggleGroup></header><main className="app-main"><Outlet/></main></SidebarInset><Toaster/>
+    </SidebarProvider>
   );
 }
 
@@ -108,6 +73,10 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <ExecutivePage /> },
       { path: '/ask', element: <AskPulsePage /> },
+      { path: '/reports', element: <PlaceholderPage title="Custom Reports" description="Pin a governed visual from the Executive Dashboard to build a live report." /> },
+      { path: '/reports/:reportId', element: <PlaceholderPage title="Custom Report" description="Saved report visuals re-query with their captured filters." /> },
+      { path: '/observability', element: <PlaceholderPage title="Observability" description="Query-backed freshness, latency, usage and cost signals." /> },
+      { path: '/settings', element: <SettingsPage /> },
     ],
   },
 ]);
@@ -115,6 +84,9 @@ const router = createBrowserRouter([
 export default function App() {
   return <RouterProvider router={router} />;
 }
+
+function PlaceholderPage({title,description}:{title:string;description:string}){return <div className="pulse-shell"><Empty><EmptyHeader><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader></Empty></div>}
+function SettingsPage(){return <div className="pulse-shell"><Panel title="Appearance" subtitle="Choose a presentation tone; the setting is saved in this browser."><p className="settings-copy">Use the tone selector in the top bar. Tonal is the default, Neutral is warm and understated, and Dark is optimized for a large-screen demo.</p></Panel><Panel title="Governance" subtitle="Runtime configuration"><dl className="about-grid"><dt>Catalog and schema</dt><dd>finserv.energy_pulse</dd><dt>Execution identity</dt><dd>App service principal unless user authorization scopes are enabled</dd><dt>AppKit</dt><dd>0.81.0</dd></dl></Panel></div>}
 
 const money = (value: unknown) => `$${(Number(value || 0) / 1_000_000).toFixed(1)}M`;
 const number = (value: unknown) => Number(value || 0).toLocaleString();
