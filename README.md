@@ -1,6 +1,6 @@
-# Pulse — Executive Energy Intelligence (Version 2)
+# Pulse — Executive Energy Intelligence
 
-> Canonical active version: `app-pwb8_2026_09_29-16_44`. Version 1 is frozen. See [VERSION_POLICY.md](VERSION_POLICY.md).
+This repository contains the canonical AppKit application. There is no maintained legacy application in this codebase.
 
 A governed Databricks demo that turns grid telemetry, outage, asset, and weather data into executive KPIs and editable Genie visualizations. It demonstrates end-to-end data engineering, Unity Catalog semantics, natural-language analytics, and a production-style AppKit experience.
 
@@ -200,7 +200,7 @@ Build the client, upload the deployable files, and deploy the `app-pwb8` resourc
 
 ```bash
 databricks apps deploy app-pwb8 \
-  --source-code-path /Workspace/Users/<user>/databricks_apps/app-pwb8-v2-node-20260929 \
+  --source-code-path /Workspace/Users/<user>/databricks_apps/app-pwb8-appkit \
   --mode SNAPSHOT
 ```
 
@@ -220,14 +220,14 @@ databricks apps deploy -t prod
 ## Project structure
 
 ```
-├── client/src/             # Version 2 React application
+├── client/src/             # Canonical React AppKit application
 ├── config/queries/         # Governed executive SQL
 ├── docs/                   # README and interview visuals
 ├── lakehouse/              # Synthetic data, declarative pipeline, orchestration
 ├── server.mjs              # Dependency-free production API adapter
 ├── app.yaml                # Databricks Apps runtime configuration
 ├── databricks.yml          # App resource and governed bindings
-└── VERSION_POLICY.md       # Version 1 freeze and Version 2 guardrails
+└── tools/jev/              # Server-only redesign phase evaluator
 ```
 
 ## Validation
@@ -238,4 +238,4 @@ npm test
 npm run build
 ```
 
-The deployed Version 2 snapshot and the exact Genie heat-wave question were validated end-to-end against `finserv.energy_pulse`.
+The deployed AppKit snapshot and the exact Genie heat-wave question were validated end-to-end against `finserv.energy_pulse`.
