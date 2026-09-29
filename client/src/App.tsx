@@ -1,4 +1,4 @@
-import { createBrowserRouter, RouterProvider, NavLink, Outlet, useLocation, useNavigate, useSearchParams } from 'react-router';
+import { createBrowserRouter, RouterProvider, NavLink, Outlet, useLocation, useNavigate, useParams, useSearchParams } from 'react-router';
 import { useEffect, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import {
@@ -73,9 +73,9 @@ const router = createBrowserRouter([
     children: [
       { path: '/', element: <ExecutivePage /> },
       { path: '/ask', element: <AskPulsePage /> },
-      { path: '/reports', element: <PlaceholderPage title="Custom Reports" description="Pin a governed visual from the Executive Dashboard to build a live report." /> },
-      { path: '/reports/:reportId', element: <PlaceholderPage title="Custom Report" description="Saved report visuals re-query with their captured filters." /> },
-      { path: '/observability', element: <PlaceholderPage title="Observability" description="Query-backed freshness, latency, usage and cost signals." /> },
+      { path: '/reports', element: <ReportsPage /> },
+      { path: '/reports/:reportId', element: <ReportPage /> },
+      { path: '/observability', element: <ObservabilityPage /> },
       { path: '/settings', element: <SettingsPage /> },
     ],
   },
@@ -85,8 +85,12 @@ export default function App() {
   return <RouterProvider router={router} />;
 }
 
-function PlaceholderPage({title,description}:{title:string;description:string}){return <div className="pulse-shell"><Empty><EmptyHeader><EmptyTitle>{title}</EmptyTitle><EmptyDescription>{description}</EmptyDescription></EmptyHeader></Empty></div>}
-function SettingsPage(){return <div className="pulse-shell"><Panel title="Appearance" subtitle="Choose a presentation tone; the setting is saved in this browser."><p className="settings-copy">Use the tone selector in the top bar. Tonal is the default, Neutral is warm and understated, and Dark is optimized for a large-screen demo.</p></Panel><Panel title="Governance" subtitle="Runtime configuration"><dl className="about-grid"><dt>Catalog and schema</dt><dd>finserv.energy_pulse</dd><dt>Execution identity</dt><dd>App service principal unless user authorization scopes are enabled</dd><dt>AppKit</dt><dd>0.81.0</dd></dl></Panel></div>}
+type Report={report_id:string;name:string;description?:string;item_count?:number};
+function ReportsPage(){const [reports,setReports]=useState<Report[]>();const [error,setError]=useState('');useEffect(()=>{fetch('/api/reports').then(r=>r.ok?r.json():Promise.reject(new Error('Reports unavailable'))).then(setReports).catch(e=>setError(String(e)))},[]);async function create(){const name=prompt('Report name','Q3 Board Review');if(!name)return;const r=await fetch('/api/reports',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({name})});if(r.ok)setReports([await r.json(),...(reports||[])])}return <div className="pulse-shell"><div className="page-heading"><div><h2>Custom Reports</h2><p>Saved visual definitions re-query governed data when opened.</p></div><button onClick={create}>＋ New report</button></div>{!reports&&!error?<Skeleton className="h-40"/>:error?<ErrorBox message={error}/>:!reports?.length?<Empty><EmptyHeader><EmptyTitle>No reports yet</EmptyTitle><EmptyDescription>Create a report, then pin visuals from the Executive Dashboard.</EmptyDescription></EmptyHeader></Empty>:<div className="report-grid">{reports.map(r=><NavLink className="panel report-card" to={`/reports/${r.report_id}`} key={r.report_id}><h3>{r.name}</h3><p>{r.item_count||0} live visuals</p></NavLink>)}</div>}</div>}
+type ReportItem={item_id:string;visual_id:string;filters_json:string;title?:string;position:number};
+function ReportPage(){const {reportId}=useParams();const [items,setItems]=useState<ReportItem[]>();const [error,setError]=useState('');useEffect(()=>{fetch(`/api/reports/${reportId}/items`).then(r=>r.ok?r.json():Promise.reject(new Error('Report unavailable'))).then(setItems).catch(e=>setError(String(e)))},[reportId]);return <div className="pulse-shell"><div className="page-heading"><div><h2>Live governed report</h2><p>Every tile re-queries with its saved filters.</p></div><button disabled title="Coming soon">Export PDF</button></div>{!items&&!error?<Skeleton className="h-40"/>:error?<ErrorBox message={error}/>:!items?.length?<Empty><EmptyHeader><EmptyTitle>No visuals yet</EmptyTitle><EmptyDescription>Use Add to report on the Executive Dashboard.</EmptyDescription></EmptyHeader></Empty>:<div className="report-grid">{items.map(i=><Panel key={i.item_id} title={i.title||i.visual_id.replaceAll('_',' ')} subtitle={`Filters: ${i.filters_json}`}><p className="settings-copy">Live visual definition · refreshed on open</p></Panel>)}</div>}</div>}
+function ObservabilityPage(){const fresh=usePulseQuery('data_freshness');return <div className="pulse-shell"><section className="kpi-grid"><Kpi icon={<Bot/>} label="Pulse AI questions" value="Query logged" detail="Governed application telemetry" change="Available after first production question"/><Kpi icon={<Gauge/>} label="Query latency" value="System table" detail="Last 7 days" change="Shown when SELECT is granted"/><Kpi icon={<WalletCards/>} label="Warehouse spend" value="System billing" detail="Month to date" change="Shown when SELECT is granted"/></section><Panel title="Data freshness by Gold table" subtitle="Real information_schema last_altered values; SLA is four hours">{fresh.loading?<Skeleton className="h-48"/>:fresh.error?<ErrorBox message={fresh.error}/>:!fresh.data?.length?<Empty><EmptyHeader><EmptyTitle>No Gold tables found</EmptyTitle><EmptyDescription>Verify catalog permissions and schema configuration.</EmptyDescription></EmptyHeader></Empty>:<div className="table-wrap"><table><thead><tr><th>Table</th><th>Last altered</th><th>Status</th></tr></thead><tbody>{fresh.data.map(r=><tr key={String(r.table_name)}><td>{String(r.table_name)}</td><td>{String(r.last_altered)}</td><td><Badge variant={r.status==='Fresh'?'secondary':'destructive'}>{String(r.status)}</Badge></td></tr>)}</tbody></table></div>}</Panel></div>}
+function SettingsPage(){const [saved,setSaved]=useState('');async function persist(){let tone='tonal';try{tone=localStorage.getItem('pulse-tone')||tone}catch{}const r=await fetch('/api/settings',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({tone,landingPage:'/',defaultFilters:{region:'All',period:'All',risk:'All'}})});setSaved(r.ok?'Saved for your account':'Unable to save settings')}return <div className="pulse-shell"><Panel title="Appearance" subtitle="Tonal teal, Warm neutral, or Dark"><p className="settings-copy">Use the tone selector in the top bar, then persist the choice to governed per-user settings.</p><button onClick={persist}>Save preferences</button>{saved&&<p>{saved}</p>}</Panel><Panel title="About and governance" subtitle="Runtime configuration"><dl className="about-grid"><dt>Catalog and schema</dt><dd>finserv.energy_pulse</dd><dt>App state</dt><dd>finserv.pulse_app</dd><dt>Execution identity</dt><dd>App service principal unless user authorization scopes are enabled</dd><dt>AppKit</dt><dd>0.81.0</dd></dl></Panel></div>}
 
 const money = (value: unknown) => `$${(Number(value || 0) / 1_000_000).toFixed(1)}M`;
 const number = (value: unknown) => Number(value || 0).toLocaleString();
@@ -100,10 +104,11 @@ function ExecutivePage() {
   const regions = usePulseQuery('regional_impact', filters);
   const risks = usePulseQuery('feeder_risk', filters);
   const causes = usePulseQuery('outage_causes', filters);
+  const reliabilityTrend = usePulseQuery('reliability_trend', filters);
   const kpi = summary.data?.[0];
   const topCause = causes.data?.[0];
   const totalCauseExposure = (causes.data || []).reduce((sum, row) => sum + Number(row.financial_impact_usd || 0), 0);
-  const periodLabel = period === 'All' ? 'Aug 1–30, 2026' : period;
+  const periodLabel = period === 'All' ? 'Aug 1–31, 2026' : period;
   const headline = topCause
     ? `${String(topCause.cause)} drove ${money(topCause.financial_impact_usd)} (${Math.round(Number(topCause.financial_impact_usd) / Math.max(totalCauseExposure, 1) * 100)}%) of ${money(totalCauseExposure)} exposure.`
     : 'Loading today’s operating priorities…';
@@ -117,10 +122,10 @@ function ExecutivePage() {
       <section className="slicer-bar"><div className="slicer-title"><Filter size={16}/><span>Analyze</span></div><label>Region<select value={region} onChange={e=>setRegion(e.target.value)}><option>All</option><option>Central</option><option>North</option><option>South</option><option>West</option></select></label><label>Period<select value={period} onChange={e=>setPeriod(e.target.value)}><option>All</option><option>July heat wave</option><option>Latest 30 days</option></select></label><label>Asset risk<select value={risk} onChange={e=>setRisk(e.target.value)}><option>All</option><option>Critical</option><option>Moderate</option><option>Low</option></select></label><button onClick={()=>{setRegion('All');setPeriod('All');setRisk('All')}}><RotateCcw size={14}/> Reset</button><span className="freshness">Updated {String(kpi?.last_refreshed_at || 'just now')} ET</span><span className="active-filter">{region === 'All' && period === 'All' && risk === 'All' ? 'Enterprise view' : 'Filtered view'}</span></section>
       {summary.loading ? <Skeleton className="h-32 w-full" /> : summary.error ? <ErrorBox message={summary.error} /> :
         <section className="kpi-grid">
-          <Kpi icon={<Gauge />} label="Peak demand" value={`${number(kpi?.peak_demand_mw)} MW`} detail={`${periodLabel} · ${number(kpi?.avg_utilization_pct)}% utilization`} change="vs 90% operating target" />
-          <Kpi icon={<Activity />} label="Reliability index" value={number(kpi?.reliability_score)} detail={`${periodLabel} · target ≥ 99.0`} change="SAIDI-weighted score" tone={Number(kpi?.reliability_score) >= 99 ? 'good' : 'warn'} />
-          <Kpi icon={<Users />} label="Customers impacted" value={number(kpi?.customers_affected)} detail={`${periodLabel} · ${number(kpi?.outage_count)} events`} change="Lower is better" tone="warn" />
-          <Kpi icon={<WalletCards />} label="Financial exposure" value={money(kpi?.financial_impact_usd)} detail={`${periodLabel} · restoration + lost revenue`} change="Compared with operating plan" />
+          <Kpi visualId="kpi_peak_demand" filters={filters} icon={<Gauge />} label="Peak demand" value={`${number(kpi?.peak_demand_mw)} MW`} detail={`${periodLabel} · ${number(kpi?.avg_utilization_pct)}% utilization · updated ${String(kpi?.last_refreshed_at)}`} change="vs 90% operating target" />
+          <Kpi visualId="kpi_reliability_index" filters={filters} icon={<Activity />} label="Reliability index" value={number(kpi?.reliability_score)} detail={`${periodLabel} · target ≥ 99.0 · updated ${String(kpi?.last_refreshed_at)}`} change={`${Number(kpi?.reliability_score)>=99?'▲':'▼'} ${Math.abs(Number(kpi?.reliability_score)-99).toFixed(1)} vs 99.0 target`} tone={Number(kpi?.reliability_score) >= 99 ? 'good' : 'warn'} />
+          <Kpi visualId="kpi_customers_impacted" filters={filters} icon={<Users />} label="Customers impacted" value={number(kpi?.customers_affected)} detail={`${periodLabel} · ${number(kpi?.outage_count)} events · updated ${String(kpi?.last_refreshed_at)}`} change="Current filtered period" tone="warn" />
+          <Kpi visualId="kpi_financial_exposure" filters={filters} icon={<WalletCards />} label="Financial exposure" value={money(kpi?.financial_impact_usd)} detail={`${periodLabel} · restoration + lost revenue · updated ${String(kpi?.last_refreshed_at)}`} change="Current filtered period" />
         </section>}
 
       <section className="content-grid">
@@ -134,9 +139,13 @@ function ExecutivePage() {
         </Panel>
       </section>
 
+      <Panel title="Reliability trend against the 99.0 target" subtitle="Query-backed daily reliability for the selected filters">
+        {reliabilityTrend.loading?<Skeleton className="h-64"/>:reliabilityTrend.error?<ErrorBox message={reliabilityTrend.error}/>:!reliabilityTrend.data?.length?<Empty><EmptyHeader><EmptyTitle>No reliability history</EmptyTitle><EmptyDescription>Change the period or region filter.</EmptyDescription></EmptyHeader></Empty>:<LineChart data={reliabilityTrend.data} xKey="metric_date" yKey="reliability_score" height={260} showSymbol={false}/>}
+      </Panel>
+
       <Panel title="Assets requiring executive action" subtitle="UC-governed risk model ranked by composite risk score">
         {risks.loading ? <Skeleton className="h-72 w-full" /> : risks.error ? <ErrorBox message={risks.error} /> :
-          <div className="table-wrap"><table><thead><tr><th>Asset</th><th>Region</th><th>Risk</th><th>Peak load</th><th>Exposure</th><th>Recommended action</th></tr></thead><tbody>{risks.data?.map(r => <tr key={String(r.asset_id)}><td><strong>{String(r.asset_id)}</strong><small>{String(r.criticality)} criticality</small></td><td>{String(r.service_region)}</td><td><span className={`risk ${String(r.risk_band).toLowerCase()}`}>{String(r.risk_band)} · {number(r.risk_score)}</span></td><td>{number(r.peak_utilization_pct)}%</td><td>{money(r.financial_impact_usd)}</td><td>{String(r.recommended_action)}</td></tr>)}</tbody></table></div>}
+          <div className="table-wrap"><table><thead><tr><th>Asset</th><th>Region</th><th>Risk tier</th><th>Peak load</th><th>Exposure</th><th>Recommended action</th></tr></thead><tbody>{risks.data?.map(r => <tr key={String(r.asset_id)}><td><strong>{String(r.asset_id)}</strong></td><td>{String(r.service_region)}</td><td><span className={`risk ${String(r.risk_band).toLowerCase()}`}>{String(r.risk_band)} · {number(r.risk_score)}</span></td><td>{number(r.peak_utilization_pct)}%</td><td>{money(r.financial_impact_usd)}</td><td>{String(r.recommended_action)}</td></tr>)}</tbody></table></div>}
       </Panel>
       <p className="provenance"><ShieldAlert size={14}/> Governed by Unity Catalog · finserv.energy_pulse · updated {String(kpi?.last_refreshed_at || 'just now')} ET from the medallion pipeline</p>
     </div>
@@ -160,7 +169,8 @@ function AskPulsePage() {
       {loading && <Skeleton className="h-28 w-full" />}
       {answer && <div className="answer"><strong>Pulse AI</strong><ReactMarkdown>{answer}</ReactMarkdown></div>}
       {result?.data && <GenieVisualization result={result} />}
-      {result && <Alert className="trust-note"><ShieldAlert size={16}/><AlertDescription>AI-generated analysis. Verify important decisions against the generated SQL. Query executed with the signed-in user's scoped Genie and SQL permissions and remains subject to Unity Catalog controls.</AlertDescription></Alert>}
+      {result && <Alert className="trust-note"><ShieldAlert size={16}/><AlertDescription>AI-generated analysis. Verify important decisions against the generated SQL. Queries currently run as the app service principal and remain subject to Unity Catalog controls.</AlertDescription></Alert>}
+      {result?.question_id&&<div className="feedback"><span>Was this answer helpful?</span><button onClick={()=>fetch('/api/feedback',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({questionId:result.question_id,feedback:'up'})})}>👍</button><button onClick={()=>fetch('/api/feedback',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({questionId:result.question_id,feedback:'down'})})}>👎</button></div>}
       {result?.suggestions && result.suggestions.length > 0 && <div className="followups"><strong>Continue exploring</strong>{result.suggestions.map(s=><button key={s} onClick={()=>setQuestion(s)}>{s}</button>)}</div>}
       {genieUrl && <a className="genie-link" href={genieUrl} target="_blank" rel="noreferrer">Open conversation in Genie →</a>}
       <div className="prompt"><textarea value={question} onChange={e=>setQuestion(e.target.value)} rows={2}/><button onClick={ask} disabled={loading || !question.trim()}>{loading ? 'Analyzing…' : 'Ask Genie'}</button></div>
@@ -168,7 +178,7 @@ function AskPulsePage() {
   </div>;
 }
 
-type GenieResult = { question?: string; answer?: string; sql?: string; description?: string; chart_type?: string; data?: {columns: string[]; rows: unknown[][]}; suggestions?: string[] };
+type GenieResult = { question_id?:string; conversation_id?:string; message_id?:string; question?: string; answer?: string; sql?: string; description?: string; chart_type?: string; data?: {columns: string[]; rows: unknown[][]}; suggestions?: string[] };
 
 function GenieVisualization({result}: {result: GenieResult}) {
   const columns = result.data?.columns || [];
@@ -209,9 +219,11 @@ function GenieVisualization({result}: {result: GenieResult}) {
   </section>;
 }
 
-function Kpi({icon, label, value, detail, change, tone = 'neutral'}: {icon: React.ReactNode; label: string; value: string; detail: string; change: string; tone?: string}) {
-  return <article className={`kpi ${tone}`}><div className="kpi-icon">{icon}</div><p>{label}</p><strong className="whitespace-nowrap">{value}</strong><small>{detail}</small><Badge variant="outline" className="kpi-change">{change}</Badge></article>;
+function Kpi({icon, label, value, detail, change, tone = 'neutral',visualId,filters}: {icon: React.ReactNode; label: string; value: string; detail: string; change: string; tone?: string;visualId?:string;filters?:Record<string,string>}) {
+  return <article className={`kpi ${tone}`}>{visualId&&<PinVisual visualId={visualId} title={label} filters={filters||{}}/>}<div className="kpi-icon">{icon}</div><p>{label}</p><strong className="whitespace-nowrap">{value}</strong><small>{detail}</small><Badge variant="outline" className="kpi-change">{change}</Badge></article>;
 }
+
+function PinVisual({visualId,title,filters}:{visualId:string;title:string;filters:Record<string,string>}){const [reports,setReports]=useState<Report[]>();const [open,setOpen]=useState(false);useEffect(()=>{if(open&&!reports)fetch('/api/reports').then(r=>r.ok?r.json():[]).then(setReports)},[open,reports]);async function add(id:string){await fetch(`/api/reports/${id}/items`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({visualId,title,filters})});setOpen(false)}return <div className="pin-wrap"><button className="pin-button" onClick={()=>setOpen(!open)}>＋ Add</button>{open&&<div className="pin-menu">{reports?.length?reports.map(r=><button key={r.report_id} onClick={()=>add(r.report_id)}>{r.name}</button>):<NavLink to="/reports">Create a report first</NavLink>}</div>}</div>}
 
 function Panel({title, subtitle, children}: {title: string; subtitle: string; children: React.ReactNode}) {
   return <section className="panel"><div className="panel-head"><div><h3>{title}</h3><p>{subtitle}</p></div></div>{children}</section>;
