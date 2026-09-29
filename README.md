@@ -35,6 +35,18 @@ Use this as the interview talk track. Open the image in a separate tab or place 
 
 [![Pulse five-minute demo storyboard](docs/pulse-demo-storyboard.svg)](docs/pulse-demo-storyboard.svg)
 
+### Interactive executive-dashboard prototype
+
+[Open the interactive Pulse demo](docs/pulse-interactive-demo.html) to present the redesigned executive experience without requiring a live Databricks connection. It includes:
+
+- Executive KPIs with targets, trends, and clear status semantics
+- Regional exposure, root-cause analysis, and differentiated asset risk
+- One-click pinning into a custom board report
+- A Pulse AI trust panel with generated-SQL, edit-visualization, OBO, and verification cues
+- Observability and three presentation tones: tonal, neutral, and dark
+
+For the best interview experience, open `docs/pulse-interactive-demo.html` locally in Chrome and use the dashboard, report, observability, and AI navigation live.
+
 Recommended Genie question:
 
 > Show a line chart of daily peak demand and average temperature by service region during the July heat wave.
