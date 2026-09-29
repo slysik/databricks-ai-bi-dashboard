@@ -22,7 +22,8 @@
     "sync": "appkit plugin sync --write --silent",
     "typegen": "appkit generate-types",
     "setup": "appkit setup --write",
-    "jev:check": "node tools/jev/check-phase.ts"
+    "jev:check": "node tools/jev/check-phase.ts",
+    "release:databricks": "bash scripts/release_databricks.sh"
   },
   "keywords": [],
   "author": "",

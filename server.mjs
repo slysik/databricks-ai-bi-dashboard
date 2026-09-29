@@ -64,12 +64,18 @@ async function handleQuery(req, res, url, token) {
 
 const ownerOf = req => String(req.headers['x-forwarded-email'] || 'app-service-principal').toLowerCase();
 const sqlString = value => `'${escapeSql(String(value))}'`;
+let appTablesReady;
 async function ensureAppTables(token) {
-  await executeSql(`CREATE SCHEMA IF NOT EXISTS finserv.pulse_app`, token);
-  await executeSql(`CREATE TABLE IF NOT EXISTS finserv.pulse_app.reports (report_id STRING, owner_email STRING, name STRING, description STRING, created_at TIMESTAMP, updated_at TIMESTAMP) USING DELTA`, token);
-  await executeSql(`CREATE TABLE IF NOT EXISTS finserv.pulse_app.report_items (item_id STRING, report_id STRING, owner_email STRING, visual_id STRING, filters_json STRING, title STRING, position INT, created_at TIMESTAMP) USING DELTA`, token);
-  await executeSql(`CREATE TABLE IF NOT EXISTS finserv.pulse_app.user_settings (owner_email STRING, tone STRING, landing_page STRING, default_filters_json STRING, updated_at TIMESTAMP) USING DELTA`, token);
-  await executeSql(`CREATE TABLE IF NOT EXISTS finserv.pulse_app.ai_questions (id STRING, user_email STRING, question STRING, conversation_id STRING, latency_ms BIGINT, status STRING, feedback STRING, created_at TIMESTAMP) USING DELTA`, token);
+  if (!appTablesReady) {
+    appTablesReady = executeSql('SELECT 1 FROM finserv.pulse_app.reports LIMIT 0', token).catch(async () => {
+      await executeSql('CREATE SCHEMA IF NOT EXISTS finserv.pulse_app', token);
+      await executeSql('CREATE TABLE IF NOT EXISTS finserv.pulse_app.reports (report_id STRING, owner_email STRING, name STRING, description STRING, created_at TIMESTAMP, updated_at TIMESTAMP) USING DELTA', token);
+      await executeSql('CREATE TABLE IF NOT EXISTS finserv.pulse_app.report_items (item_id STRING, report_id STRING, owner_email STRING, visual_id STRING, filters_json STRING, title STRING, position INT, created_at TIMESTAMP) USING DELTA', token);
+      await executeSql('CREATE TABLE IF NOT EXISTS finserv.pulse_app.user_settings (owner_email STRING, tone STRING, landing_page STRING, default_filters_json STRING, updated_at TIMESTAMP) USING DELTA', token);
+      await executeSql('CREATE TABLE IF NOT EXISTS finserv.pulse_app.ai_questions (id STRING, user_email STRING, question STRING, conversation_id STRING, latency_ms BIGINT, status STRING, feedback STRING, created_at TIMESTAMP) USING DELTA', token);
+    });
+  }
+  return appTablesReady;
 }
 async function handleReports(req,res,url,token){
   await ensureAppTables(token); const owner=ownerOf(req); const parts=url.pathname.split('/').filter(Boolean); const id=parts[2];
