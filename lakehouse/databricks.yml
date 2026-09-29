@@ -1,0 +1,82 @@
+bundle:
+  name: energy_pulse_lakehouse
+
+variables:
+  catalog:
+    default: finserv
+  schema:
+    default: energy_pulse
+  warehouse_id:
+    default: 4bbaafe9538467a0
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://dbc-61514402-8451.cloud.databricks.com
+      profile: primary-aws-user
+
+resources:
+  pipelines:
+    energy_pulse_medallion:
+      name: "Energy Pulse Medallion"
+      catalog: ${var.catalog}
+      schema: ${var.schema}
+      development: true
+      serverless: true
+      channel: PREVIEW
+      configuration:
+        landing_root: /Volumes/${var.catalog}/${var.schema}/landing
+      libraries:
+        - file:
+            path: src/pipeline/01_bronze_ingestion.sql
+        - file:
+            path: src/pipeline/02_silver_transforms.sql
+        - file:
+            path: src/pipeline/03_gold_aggregations.sql
+
+  jobs:
+    energy_pulse_orchestrator:
+      name: "Energy Pulse - Refresh Executive Intelligence"
+      queue:
+        enabled: true
+      tasks:
+        - task_key: seed_landing
+          notebook_task:
+            notebook_path: src/notebooks/00_seed_landing.py
+            source: WORKSPACE
+        - task_key: run_medallion_pipeline
+          depends_on:
+            - task_key: seed_landing
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.energy_pulse_medallion.id}
+            full_refresh: true
+        - task_key: apply_uc_business_metadata
+          depends_on:
+            - task_key: run_medallion_pipeline
+          notebook_task:
+            notebook_path: src/notebooks/05_apply_uc_business_metadata.py
+            source: WORKSPACE
+
+    energy_pulse_new_day:
+      name: "Energy Pulse - Land New Day (Interview Demo)"
+      queue:
+        enabled: true
+      tasks:
+        - task_key: land_august_30
+          notebook_task:
+            notebook_path: src/notebooks/06_land_new_day.py
+            source: WORKSPACE
+        - task_key: incremental_pipeline_refresh
+          depends_on:
+            - task_key: land_august_30
+          pipeline_task:
+            pipeline_id: ${resources.pipelines.energy_pulse_medallion.id}
+            full_refresh: false
+        - task_key: validate_business_change
+          depends_on:
+            - task_key: incremental_pipeline_refresh
+          notebook_task:
+            notebook_path: src/notebooks/07_validate_new_day.py
+            source: WORKSPACE

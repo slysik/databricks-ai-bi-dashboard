@@ -1,0 +1,63 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="620" viewBox="0 0 1400 620" role="img" aria-labelledby="title desc">
+  <title id="title">Pulse executive energy intelligence solution overview</title>
+  <desc id="desc">Data flows from governed landing through Bronze, Silver, and Gold into an executive dashboard and Genie natural-language analytics.</desc>
+  <defs>
+    <linearGradient id="hero" x1="0" x2="1"><stop stop-color="#073b55"/><stop offset="1" stop-color="#087b84"/></linearGradient>
+    <filter id="shadow"><feDropShadow dx="0" dy="5" stdDeviation="8" flood-opacity=".12"/></filter>
+    <marker id="arrow" markerWidth="10" markerHeight="10" refX="8" refY="3" orient="auto"><path d="M0,0 L0,6 L9,3 z" fill="#4b7283"/></marker>
+    <style>
+      .title{font:700 34px Inter,Arial,sans-serif;fill:#fff}.sub{font:400 17px Inter,Arial,sans-serif;fill:#c9e8ec}
+      .box{fill:#fff;stroke:#c9dce5;stroke-width:2;rx:16;filter:url(#shadow)}.h{font:700 20px Inter,Arial,sans-serif;fill:#102a43}.p{font:400 14px Inter,Arial,sans-serif;fill:#557384}.tag{font:700 12px Inter,Arial,sans-serif;fill:#08758b}.metric{font:700 23px Inter,Arial,sans-serif;fill:#102a43}.label{font:600 12px Inter,Arial,sans-serif;fill:#67818f}.arrow{stroke:#4b7283;stroke-width:3;fill:none;marker-end:url(#arrow)}
+    </style>
+  </defs>
+  <rect width="1400" height="620" fill="#f4f8fb"/>
+  <rect width="1400" height="132" fill="url(#hero)"/>
+  <text x="60" y="58" class="title">Pulse · Executive Energy Intelligence</text>
+  <text x="60" y="91" class="sub">A governed digital chief of staff: data engineering → trusted metrics → conversational analytics</text>
+
+  <g transform="translate(45 178)">
+    <rect class="box" width="220" height="180"/>
+    <text x="24" y="38" class="tag">01 · GOVERNED LANDING</text>
+    <text x="24" y="73" class="h">Operational feeds</text>
+    <text x="24" y="104" class="p">AMI / SCADA telemetry</text><text x="24" y="129" class="p">Outage management</text><text x="24" y="154" class="p">Weather + asset registry</text>
+  </g>
+  <path class="arrow" d="M275 268 H325"/>
+  <g transform="translate(335 178)">
+    <rect class="box" width="220" height="180"/>
+    <text x="24" y="38" class="tag">02 · BRONZE</text>
+    <text x="24" y="73" class="h">Incremental ingest</text>
+    <text x="24" y="104" class="p">Auto Loader streaming tables</text><text x="24" y="129" class="p">File lineage + rescue data</text><text x="24" y="154" class="p">Replayable raw history</text>
+  </g>
+  <path class="arrow" d="M565 268 H615"/>
+  <g transform="translate(625 178)">
+    <rect class="box" width="220" height="180"/>
+    <text x="24" y="38" class="tag">03 · SILVER</text>
+    <text x="24" y="73" class="h">Quality + quarantine</text>
+    <text x="24" y="104" class="p">Declarative expectations</text><text x="24" y="129" class="p">Validated business types</text><text x="24" y="154" class="p">Explainable rejected rows</text>
+  </g>
+  <path class="arrow" d="M855 268 H905"/>
+  <g transform="translate(915 178)">
+    <rect class="box" width="220" height="180"/>
+    <text x="24" y="38" class="tag">04 · GOLD + UC</text>
+    <text x="24" y="73" class="h">Executive semantics</text>
+    <text x="24" y="104" class="p">Reliability + exposure KPIs</text><text x="24" y="129" class="p">Asset risk + root cause</text><text x="24" y="154" class="p">Business descriptions</text>
+  </g>
+  <path class="arrow" d="M1145 268 H1195"/>
+  <g transform="translate(1205 178)">
+    <rect class="box" width="150" height="180"/>
+    <text x="20" y="38" class="tag">05 · EXPERIENCE</text>
+    <text x="20" y="73" class="h">Pulse</text>
+    <text x="20" y="104" class="p">Executive view</text><text x="20" y="129" class="p">Ask Pulse AI</text><text x="20" y="154" class="p">Editable visuals</text>
+  </g>
+
+  <g transform="translate(45 405)">
+    <rect x="0" y="0" width="1310" height="150" rx="18" fill="#fff" stroke="#d7e5eb"/>
+    <text x="24" y="34" class="tag">LIVE BUSINESS STORY</text>
+    <g transform="translate(25 53)"><text class="metric">$9.43M</text><text y="27" class="label">West exposure</text></g>
+    <g transform="translate(285 53)"><text class="metric">96.72</text><text y="27" class="label">West reliability</text></g>
+    <g transform="translate(530 53)"><text class="metric">152,277</text><text y="27" class="label">Customers impacted</text></g>
+    <g transform="translate(825 53)"><text class="metric">89.85</text><text y="27" class="label">Top asset risk</text></g>
+    <g transform="translate(1080 53)"><text class="metric">28 rows</text><text y="27" class="label">July heat-wave series</text></g>
+    <text x="25" y="125" class="p">West and Central heat stress create a visible 80/20-style risk story; North remains the reliability benchmark.</text>
+  </g>
+</svg>

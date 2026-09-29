@@ -1,0 +1,25 @@
+bundle:
+  name: app_pwb8
+
+workspace:
+  host: https://dbc-61514402-8451.cloud.databricks.com
+  profile: primary-aws-user
+
+resources:
+  apps:
+    app:
+      name: app-pwb8
+      description: "Pulse - AI-powered executive energy intelligence"
+      source_code_path: .
+      lifecycle:
+        started: true
+      resources:
+        - name: sql-warehouse
+          sql_warehouse:
+            id: 4bbaafe9538467a0
+            permission: CAN_USE
+        - name: genie-space
+          genie_space:
+            name: Pulse - Executive Energy Intelligence
+            space_id: 01f1bc21135d1e4abfbbad97a44dae6f
+            permission: CAN_RUN

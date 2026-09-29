@@ -1,1 +1,8 @@
-command: ['npm', 'run', 'start']
+command: ['node', 'server.mjs']
+# Version 2 only. User authorization makes Genie and SQL requests auditable
+# against the signed-in executive's Unity Catalog permissions.
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    value: '4bbaafe9538467a0'
+  - name: DATABRICKS_GENIE_SPACE_ID
+    value: '01f1bc21135d1e4abfbbad97a44dae6f'

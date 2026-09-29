@@ -1,9 +1,67 @@
-# app
+# Pulse — Executive Energy Intelligence (Version 2)
 
-A Databricks App powered by [AppKit](https://developers.databricks.com/docs/appkit/v0/), featuring React, TypeScript, and Tailwind CSS.
+> Canonical active version: `app-pwb8_2026_09_29-16_44`. Version 1 is frozen. See [VERSION_POLICY.md](VERSION_POLICY.md).
 
-**Enabled plugins:**
-- **Server** -- Express HTTP server with static file serving and Vite dev mode
+A governed Databricks demo that turns grid telemetry, outage, asset, and weather data into executive KPIs and editable Genie visualizations. It demonstrates end-to-end data engineering, Unity Catalog semantics, natural-language analytics, and a production-style AppKit experience.
+
+[![Live App](https://img.shields.io/badge/Live_App-Open_Pulse-0B7588?style=for-the-badge)](https://app-pwb8-7474656067656578.aws.databricksapps.com)
+[![Databricks](https://img.shields.io/badge/Databricks-AWS-FF3621?style=for-the-badge)](https://dbc-61514402-8451.cloud.databricks.com/)
+
+![Pulse solution overview](docs/pulse-solution-overview.svg)
+
+## What the demo proves
+
+- Incremental operational data flows through Bronze, Silver, and Gold using a Lakeflow Spark Declarative Pipeline.
+- Silver expectations reject invalid telemetry into explainable quarantine tables.
+- Unity Catalog business descriptions improve generated SQL and make metrics discoverable.
+- Executives can cross-filter regional exposure, root causes, and asset risk without authoring a report.
+- Genie converts plain English into governed SQL, chronological time-series data, and editable visuals.
+- Answers show signed-in identity, generated SQL, and an AI-verification notice.
+
+## Live business story
+
+| Region | Financial exposure | Reliability | Customers impacted |
+|---|---:|---:|---:|
+| West | $9.43M | 96.72 | 152,277 |
+| Central | $7.72M | 97.35 | 124,467 |
+| South | $3.25M | 99.33 | 48,990 |
+| North | $2.50M | 99.50 | 37,455 |
+
+The synthetic data deliberately tells a story: West and Central experience disproportionate heat-wave stress, North provides the reliability benchmark, and asset-risk scores retain meaningful separation instead of saturating at 100.
+
+## Five-minute demo visual
+
+Use this as the interview talk track. Open the image in a separate tab or place it directly into a slide.
+
+[![Pulse five-minute demo storyboard](docs/pulse-demo-storyboard.svg)](docs/pulse-demo-storyboard.svg)
+
+Recommended Genie question:
+
+> Show a line chart of daily peak demand and average temperature by service region during the July heat wave.
+
+The verified response contains `metric_date`, `service_region`, `peak_demand_mw`, and `avg_temperature_f`, ordered chronologically with one series per region.
+
+## Architecture
+
+```text
+UC landing volume
+      ↓ Auto Loader
+Bronze streaming tables
+      ↓ expectations and cleansing
+Silver validated views + quarantine
+      ↓ governed aggregations
+Gold executive KPIs, risk, root cause, load/weather
+      ├── Pulse executive dashboard
+      └── Genie natural-language analytics
+```
+
+## Application components
+
+- **Frontend:** AppKit UI, React, TypeScript, Vite, and responsive Databricks chart components
+- **Runtime:** dependency-free Node.js HTTP adapter for the deployed snapshot
+- **Analytics:** Databricks SQL Statements API against governed Gold objects
+- **Conversational BI:** Databricks Genie Conversation API
+- **Security:** signed-in scoped user access and Unity Catalog authorization
 
 ## Prerequisites
 
@@ -101,7 +159,7 @@ This creates:
 Run the production build:
 
 ```bash
-npm start
+node server.mjs
 ```
 
 ## Code Quality
@@ -121,7 +179,7 @@ npm run format
 npm run format:fix
 ```
 
-## Deployment with Databricks Asset Bundles
+## Deployment
 
 ### 1. Configure Bundle
 
@@ -138,10 +196,12 @@ Make sure to replace all placeholder values in `databricks.yml` with your actual
 
 ### 2. Deploy
 
-Deploy and start the app with a single command:
+Build the client, upload the deployable files, and deploy the `app-pwb8` resource. The current production snapshot uses `app.yaml`, `server.mjs`, `client/dist`, and `config/queries`.
 
 ```bash
-databricks apps deploy
+databricks apps deploy app-pwb8 \
+  --source-code-path /Workspace/Users/<user>/databricks_apps/app-pwb8-v2-node-20260929 \
+  --mode SNAPSHOT
 ```
 
 `databricks apps deploy` validates the project, deploys it, starts the app, and prints its URL.
@@ -157,24 +217,25 @@ databricks apps deploy -t prod
 
 > **Restarting a stopped app:** apps stop after a period of inactivity. To start one again without redeploying, run `databricks apps start <APP_NAME>`.
 
-## Project Structure
+## Project structure
 
 ```
-* client/          # React frontend
-  * src/           # Source code
-  * public/        # Static assets
-* server/          # Express backend
-  * server.ts      # Server entry point
-  * routes/        # Routes
-* shared/          # Shared types
-* databricks.yml   # Bundle configuration
-* app.yaml         # App configuration
-* .env.example     # Environment variables example
+├── client/src/             # Version 2 React application
+├── config/queries/         # Governed executive SQL
+├── docs/                   # README and interview visuals
+├── lakehouse/              # Synthetic data, declarative pipeline, orchestration
+├── server.mjs              # Dependency-free production API adapter
+├── app.yaml                # Databricks Apps runtime configuration
+├── databricks.yml          # App resource and governed bindings
+└── VERSION_POLICY.md       # Version 1 freeze and Version 2 guardrails
 ```
 
-## Tech Stack
+## Validation
 
-- **Backend**: Node.js, Express
-- **Frontend**: React.js, TypeScript, Vite, Tailwind CSS, React Router
-- **UI Components**: Radix UI, shadcn/ui
-- **Databricks**: AppKit SDK
+```bash
+npm run typecheck
+npm test
+npm run build
+```
+
+The deployed Version 2 snapshot and the exact Genie heat-wave question were validated end-to-end against `finserv.energy_pulse`.

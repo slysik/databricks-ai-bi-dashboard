@@ -1,0 +1,18 @@
+{
+  "space_id": "01f1bc21135d1e4abfbbad97a44dae6f",
+  "title": "Pulse - Executive Energy Intelligence",
+  "warehouse_id": "4bbaafe9538467a0",
+  "workspace_url": "https://dbc-61514402-8451.cloud.databricks.com/genie/rooms/01f1bc21135d1e4abfbbad97a44dae6f?o=7474656067656578",
+  "catalog": "finserv",
+  "schema": "energy_pulse",
+  "tables": [
+    "finserv.energy_pulse.gold_executive_kpis",
+    "finserv.energy_pulse.gold_feeder_risk",
+    "finserv.energy_pulse.gold_load_weather",
+    "finserv.energy_pulse.gold_outage_root_cause"
+  ],
+  "validated_questions": [
+    "Which outage causes created the greatest financial impact? Show an executive visual.",
+    "Create a bar chart of all outage causes ranked by total financial impact."
+  ]
+}
