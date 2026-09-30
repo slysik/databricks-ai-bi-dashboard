@@ -107,10 +107,17 @@ function ExecutivePage() {
   const risks = usePulseQuery('feeder_risk', filters);
   const causes = usePulseQuery('outage_causes', filters);
   const reliabilityTrend = usePulseQuery('reliability_trend', filters);
+  const kpiTrend = usePulseQuery('kpi_trend', filters);
   const kpi = summary.data?.[0];
   const topCause = causes.data?.[0];
   const totalCauseExposure = (causes.data || []).reduce((sum, row) => sum + Number(row.financial_impact_usd || 0), 0);
   const periodLabel = period === 'All' ? 'Aug 1–31, 2026' : period;
+  const topRegion = regions.data?.[0];
+  const totalRegionExposure = (regions.data || []).reduce((sum, row) => sum + Number(row.financial_impact_usd || 0), 0);
+  const supporting = topRegion && kpi
+    ? `${String(topRegion.service_region)} carries ${Math.round(Number(topRegion.financial_impact_usd) / Math.max(totalRegionExposure, 1) * 100)}% of exposure; reliability is ${Math.abs(Number(kpi.reliability_score) - 99).toFixed(1)} pts ${Number(kpi.reliability_score) < 99 ? 'below' : 'above'} the 99.0 target.`
+    : 'Prioritized from governed Gold metrics for the leadership team.';
+  const trendRows = [...(kpiTrend.data || [])].reverse();
   const headline = topCause
     ? `${String(topCause.cause)} drove ${money(topCause.financial_impact_usd)} (${Math.round(Number(topCause.financial_impact_usd) / Math.max(totalCauseExposure, 1) * 100)}%) of ${money(totalCauseExposure)} exposure.`
     : 'Loading today’s operating priorities…';
@@ -118,20 +125,20 @@ function ExecutivePage() {
   return (
     <div className="pulse-shell">
       <section className="hero executive-hero">
-        <div><p className="eyebrow">LIVE OPERATING VIEW</p><h2>{headline}</h2><p>Prioritized from governed Gold metrics for the leadership team.</p></div>
-        <NavLink to="/ask" className="ask-button"><Bot size={18} /> Ask Pulse AI</NavLink>
+        <div><p className="eyebrow">WHAT CHANGED THIS PERIOD</p><h2>{headline}</h2><p>{supporting}</p></div>
+        <NavLink to={`/ask?q=${encodeURIComponent(`Why did ${String(topCause?.cause || 'the leading outage cause')} drive the most financial exposure, and what should leadership do next?`)}`} className="ask-button">Ask why <span>→</span></NavLink>
       </section>
       <section className="slicer-bar"><div className="slicer-title"><Filter size={16}/><span>Analyze</span></div><label>Region<select value={region} onChange={e=>setRegion(e.target.value)}><option>All</option><option>Central</option><option>North</option><option>South</option><option>West</option></select></label><label>Period<select value={period} onChange={e=>setPeriod(e.target.value)}><option>All</option><option>July heat wave</option><option>Latest 30 days</option></select></label><label>Asset risk<select value={risk} onChange={e=>setRisk(e.target.value)}><option>All</option><option>Critical</option><option>Moderate</option><option>Low</option></select></label><button onClick={()=>{setRegion('All');setPeriod('All');setRisk('All')}}><RotateCcw size={14}/> Reset</button><span className="freshness">Updated {String(kpi?.last_refreshed_at || 'just now')} ET</span><span className="active-filter">{region === 'All' && period === 'All' && risk === 'All' ? 'Enterprise view' : 'Filtered view'}</span></section>
       {summary.loading ? <Skeleton className="h-32 w-full" /> : summary.error ? <ErrorBox message={summary.error} /> :
         <section className="kpi-grid">
-          <Kpi visualId="kpi_peak_demand" filters={filters} icon={<Gauge />} label="Peak demand" value={`${number(kpi?.peak_demand_mw)} MW`} detail={`${periodLabel} · ${number(kpi?.avg_utilization_pct)}% utilization · updated ${String(kpi?.last_refreshed_at)}`} change="vs 90% operating target" />
-          <Kpi visualId="kpi_reliability_index" filters={filters} icon={<Activity />} label="Reliability index" value={number(kpi?.reliability_score)} detail={`${periodLabel} · target ≥ 99.0 · updated ${String(kpi?.last_refreshed_at)}`} change={`${Number(kpi?.reliability_score)>=99?'▲':'▼'} ${Math.abs(Number(kpi?.reliability_score)-99).toFixed(1)} vs 99.0 target`} tone={Number(kpi?.reliability_score) >= 99 ? 'good' : 'warn'} />
-          <Kpi visualId="kpi_customers_impacted" filters={filters} icon={<Users />} label="Customers impacted" value={number(kpi?.customers_affected)} detail={`${periodLabel} · ${number(kpi?.outage_count)} events · updated ${String(kpi?.last_refreshed_at)}`} change="Current filtered period" tone="warn" />
-          <Kpi visualId="kpi_financial_exposure" filters={filters} icon={<WalletCards />} label="Financial exposure" value={money(kpi?.financial_impact_usd)} detail={`${periodLabel} · restoration + lost revenue · updated ${String(kpi?.last_refreshed_at)}`} change="Current filtered period" />
+          <Kpi visualId="kpi_peak_demand" filters={filters} icon={<Gauge />} label="Peak demand" value={`${number(kpi?.peak_demand_mw)} MW`} detail={`${periodLabel} · updated ${String(kpi?.last_refreshed_at)}`} change={`${number(kpi?.avg_utilization_pct)}% utilization · under 90% cap`} trend={trendRows.map(r=>Number(r.peak_demand_mw))}/>
+          <Kpi visualId="kpi_reliability_index" filters={filters} icon={<Activity />} label="Reliability index" value={number(kpi?.reliability_score)} detail={`${periodLabel} · SAIDI-weighted · updated ${String(kpi?.last_refreshed_at)}`} change={`${Number(kpi?.reliability_score)>=99?'▲':'▼'} ${Math.abs(Number(kpi?.reliability_score)-99).toFixed(1)} vs 99.0 target`} tone={Number(kpi?.reliability_score) >= 99 ? 'good' : 'danger'} trend={trendRows.map(r=>Number(r.reliability_score))} target={99}/>
+          <Kpi visualId="kpi_customers_impacted" filters={filters} icon={<Users />} label="Customers impacted" value={number(kpi?.customers_affected)} detail={`${periodLabel} · ${number(kpi?.outage_count)} events · updated ${String(kpi?.last_refreshed_at)}`} change="Current filtered period" trend={trendRows.map(r=>Number(r.customers_affected))}/>
+          <Kpi visualId="kpi_financial_exposure" filters={filters} icon={<WalletCards />} label="Financial exposure" value={money(kpi?.financial_impact_usd)} detail={`${periodLabel} · restoration + lost revenue · updated ${String(kpi?.last_refreshed_at)}`} change="Current filtered period" trend={trendRows.map(r=>Number(r.financial_impact_usd))}/>
         </section>}
 
       <section className="content-grid">
-        <Panel title="Regional business impact" subtitle="Ranked by total financial exposure">
+        <Panel title={`${String(topRegion?.service_region || 'Top region')} carries the most exposure`} subtitle={`Financial exposure by region · ${periodLabel}`}>
           {regions.loading ? <Skeleton className="h-64 w-full" /> : regions.error ? <ErrorBox message={regions.error} /> :
             <div className="bar-list">{regions.data?.map((r) => { const max = Math.max(...(regions.data || []).map(x => Number(x.financial_impact_usd))); return <button className="bar-row drill" onClick={()=>setRegion(String(r.service_region))} key={String(r.service_region)}><div className="bar-label"><strong>{String(r.service_region)}</strong><span>{money(r.financial_impact_usd)}</span></div><div className="track"><span style={{width: `${Math.max(8, Number(r.financial_impact_usd) / max * 100)}%`}} /></div><small>{number(r.customers_affected)} customers · reliability {number(r.reliability_score)} <span aria-hidden="true">›</span></small></button>})}</div>}
         </Panel>
@@ -141,14 +148,14 @@ function ExecutivePage() {
         </Panel>
       </section>
 
-      <Panel title="Reliability trend against the 99.0 target" subtitle="Query-backed daily reliability for the selected filters">
+      <section className="content-grid lower-grid"><Panel title="Reliability trend against the 99.0 target" subtitle="Query-backed daily reliability · dashed target = 99.0">
         {reliabilityTrend.loading?<Skeleton className="h-64"/>:reliabilityTrend.error?<ErrorBox message={reliabilityTrend.error}/>:!reliabilityTrend.data?.length?<Empty><EmptyHeader><EmptyTitle>No reliability history</EmptyTitle><EmptyDescription>Change the period or region filter.</EmptyDescription></EmptyHeader></Empty>:<LineChart data={reliabilityTrend.data} xKey="metric_date" yKey="reliability_score" height={260} showSymbol={false}/>}
       </Panel>
 
       <Panel title="Assets requiring executive action" subtitle="UC-governed risk model ranked by composite risk score">
         {risks.loading ? <Skeleton className="h-72 w-full" /> : risks.error ? <ErrorBox message={risks.error} /> :
           <div className="table-wrap"><table><thead><tr><th>Asset</th><th>Region</th><th>Risk tier</th><th>Peak load</th><th>Exposure</th><th>Recommended action</th></tr></thead><tbody>{risks.data?.map(r => <tr key={String(r.asset_id)}><td><strong>{String(r.asset_id)}</strong></td><td>{String(r.service_region)}</td><td><span className={`risk ${String(r.risk_band).toLowerCase()}`}>{String(r.risk_band)} · {number(r.risk_score)}</span></td><td>{number(r.peak_utilization_pct)}%</td><td>{money(r.financial_impact_usd)}</td><td>{String(r.recommended_action)}</td></tr>)}</tbody></table></div>}
-      </Panel>
+      </Panel></section>
       <p className="provenance"><ShieldAlert size={14}/> Governed by Unity Catalog · finserv.energy_pulse · updated {String(kpi?.last_refreshed_at || 'just now')} ET from the medallion pipeline</p>
     </div>
   );
@@ -221,8 +228,9 @@ function GenieVisualization({result}: {result: GenieResult}) {
   </section>;
 }
 
-function Kpi({icon, label, value, detail, change, tone = 'neutral',visualId,filters}: {icon: React.ReactNode; label: string; value: string; detail: string; change: string; tone?: string;visualId?:string;filters?:Record<string,string>}) {
-  return <article className={`kpi ${tone}`}>{visualId&&<PinVisual visualId={visualId} title={label} filters={filters||{}}/>}<div className="kpi-icon">{icon}</div><p>{label}</p><strong className="whitespace-nowrap">{value}</strong><small>{detail}</small><Badge variant="outline" className="kpi-change">{change}</Badge></article>;
+function Sparkline({values,target,danger=false}:{values:number[];target?:number;danger?:boolean}){if(values.length<2)return <div className="spark-placeholder"/>;const w=200,h=42;const all=target===undefined?values:[...values,target];const min=Math.min(...all),max=Math.max(...all);const x=(i:number)=>i*w/(values.length-1);const y=(v:number)=>h-5-(v-min)/Math.max(max-min,1)*(h-10);const points=values.map((v,i)=>`${x(i)},${y(v)}`).join(' ');return <svg className={`spark ${danger?'danger':''}`} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none" aria-hidden="true">{target!==undefined&&<line className="spark-target" x1="0" x2={w} y1={y(target)} y2={y(target)}/>}<polyline points={points}/><circle cx={x(values.length-1)} cy={y(values.at(-1)!)} r="3"/></svg>}
+function Kpi({icon, label, value, detail, change, tone = 'neutral',visualId,filters,trend=[],target}: {icon: React.ReactNode; label: string; value: string; detail: string; change: string; tone?: string;visualId?:string;filters?:Record<string,string>;trend?:number[];target?:number}) {
+  return <article className={`kpi ${tone}`}>{visualId&&<PinVisual visualId={visualId} title={label} filters={filters||{}}/>}<div className="kpi-icon">{icon}</div><p>{label}</p><strong className="whitespace-nowrap">{value}</strong><Badge variant="outline" className="kpi-change">{change}</Badge><Sparkline values={trend} target={target} danger={tone==='danger'}/><small>{detail}</small></article>;
 }
 
 function PinVisual({visualId,title,filters}:{visualId:string;title:string;filters:Record<string,string>}){const [reports,setReports]=useState<Report[]>();const [open,setOpen]=useState(false);useEffect(()=>{if(open&&!reports)fetch('/api/reports').then(r=>r.ok?r.json():[]).then(setReports)},[open,reports]);async function add(id:string){await fetch(`/api/reports/${id}/items`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({visualId,title,filters})});setOpen(false)}return <div className="pin-wrap"><button className="pin-button" onClick={()=>setOpen(!open)}>＋ Add</button>{open&&<div className="pin-menu">{reports?.length?reports.map(r=><button key={r.report_id} onClick={()=>add(r.report_id)}>{r.name}</button>):<NavLink to="/reports">Create a report first</NavLink>}</div>}</div>}
