@@ -129,11 +129,23 @@ async function handleGenie(req, res, token) {
     dataset = await executeSql(correctedSql, token);
     queryAttachment = {query: correctedSql, description: 'Peak demand rose with average temperature across all four service regions during the July heat wave.'};
     texts = ['Daily peak demand and **average temperature** are shown chronologically for each service region. The separate panels preserve the units and make regional divergence easy to compare.'];
+    queryAttachmentId = undefined; // replaced dataset no longer matches this attachment; disable replay for it
   }
   const chartType = requested.includes('pareto') ? 'pareto' : ['line','trend','over time','daily'].some(term => requested.includes(term)) ? 'line' : 'bar';
   const questionId=crypto.randomUUID();
   try{await ensureAppTables(token);await executeSql(`INSERT INTO finserv.pulse_app.ai_questions VALUES (${sqlString(questionId)},${sqlString('app-service-principal')},${sqlString(body.question)},${sqlString(conversationId)},${Date.now()-requestStarted},${sqlString(message.status||'COMPLETED')},NULL,current_timestamp())`,token);}catch(error){console.warn('AI question logging unavailable',error instanceof Error?error.message:String(error));}
-  return json(res, {question_id:questionId, conversation_id:conversationId, message_id:messageId, question: body.question, answer: texts.join('\n\n') || 'Analysis complete.', genie_url: `${host}/genie/rooms/${genieSpace}`, sql: queryAttachment?.query, description: queryAttachment?.description, data: dataset, chart_type: chartType, has_viz: hasViz, suggestions});
+  return json(res, {question_id:questionId, conversation_id:conversationId, message_id:messageId, attachment_id:queryAttachmentId, question: body.question, answer: texts.join('\n\n') || 'Analysis complete.', genie_url: `${host}/genie/rooms/${genieSpace}`, sql: queryAttachment?.query, description: queryAttachment?.description, data: dataset, chart_type: chartType, has_viz: hasViz, suggestions});
+}
+
+async function handleGenieReplay(req, res, url, token) {
+  const conversationId = url.searchParams.get('conversationId');
+  const messageId = url.searchParams.get('messageId');
+  const attachmentId = url.searchParams.get('attachmentId');
+  if (!conversationId || !messageId || !attachmentId) return json(res, {error: 'Missing conversationId, messageId, or attachmentId'}, 400);
+  const response = await api(`/api/2.0/genie/spaces/${genieSpace}/conversations/${conversationId}/messages/${messageId}/attachments/${attachmentId}/query-result`, token);
+  const result = response.statement_response || response;
+  const columns = (result.manifest?.schema?.columns || []).map(column => column.name);
+  return json(res, {columns, rows: result.result?.data_array || []});
 }
 
 async function handleSettings(req,res,token){await ensureAppTables(token);const owner=ownerOf(req);if(req.method==='GET'){const r=await executeSql(`SELECT tone,landing_page,default_filters_json FROM finserv.pulse_app.user_settings WHERE owner_email=${sqlString(owner)} ORDER BY updated_at DESC LIMIT 1`,token);return json(res,r.rows.length?Object.fromEntries(r.columns.map((c,i)=>[c,r.rows[0][i]])):{});}const chunks=[];for await(const c of req)chunks.push(c);const b=JSON.parse(Buffer.concat(chunks).toString('utf8'));await executeSql(`DELETE FROM finserv.pulse_app.user_settings WHERE owner_email=${sqlString(owner)}`,token);await executeSql(`INSERT INTO finserv.pulse_app.user_settings VALUES (${sqlString(owner)},${sqlString(b.tone||'tonal')},${sqlString(b.landingPage||'/')},${sqlString(JSON.stringify(b.defaultFilters||{}))},current_timestamp())`,token);return json(res,{ok:true});}
@@ -145,6 +157,7 @@ createServer(async (req, res) => {
     const token = req.headers['x-forwarded-access-token'] || process.env.DATABRICKS_TOKEN || '';
     if (req.method === 'GET' && url.pathname.startsWith('/api/query/')) return await handleQuery(req, res, url, token);
     if (req.method === 'POST' && url.pathname === '/api/genie') return await handleGenie(req, res, token);
+    if (req.method === 'GET' && url.pathname === '/api/genie/query-result') return await handleGenieReplay(req, res, url, token);
     if (url.pathname.startsWith('/api/reports')) return await handleReports(req,res,url,token);
     if (url.pathname==='/api/settings') return await handleSettings(req,res,token);
     if (req.method==='POST'&&url.pathname==='/api/feedback') return await handleFeedback(req,res,token);
