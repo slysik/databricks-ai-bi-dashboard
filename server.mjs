@@ -8,7 +8,7 @@ let host = (process.env.DATABRICKS_HOST || 'https://dbc-61514402-8451.cloud.data
 if (!/^https?:\/\//.test(host)) host = `https://${host}`;
 const warehouse = process.env.DATABRICKS_WAREHOUSE_ID || '4bbaafe9538467a0';
 const genieSpace = process.env.DATABRICKS_GENIE_SPACE_ID || '01f1bc21135d1e4abfbbad97a44dae6f';
-const queryNames = ['executive_summary', 'feeder_risk', 'outage_causes', 'regional_impact', 'kpi_trend', 'reliability_trend', 'data_freshness', 'ai_usage', 'query_latency', 'warehouse_spend', 'ml_insights', 'asset_risk_predictions', 'ai_gateway_usage'];
+const queryNames = ['executive_summary', 'feeder_risk', 'outage_causes', 'regional_impact', 'kpi_trend', 'reliability_trend', 'data_freshness', 'ai_usage', 'query_latency', 'warehouse_spend', 'ml_insights', 'asset_risk_predictions', 'ai_gateway_usage', 'anomaly_trend', 'exposure_trend', 'pipeline_runs'];
 const queries = Object.fromEntries(queryNames.map(name => [name, readFileSync(join(root, 'config', 'queries', `${name}.sql`), 'utf8')]));
 
 const json = (res, value, status = 200) => {

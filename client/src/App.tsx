@@ -100,7 +100,15 @@ const WORKSPACE_HOST = 'https://dbc-61514402-8451.cloud.databricks.com';
 function ObservabilityPage(){
   const fresh=usePulseQuery('data_freshness'), ai=usePulseQuery('ai_usage'), latency=usePulseQuery('query_latency'), spend=usePulseQuery('warehouse_spend');
   const ml=usePulseQuery('ml_insights'), predictions=usePulseQuery('asset_risk_predictions'), gateway=usePulseQuery('ai_gateway_usage');
+  const trend=usePulseQuery('exposure_trend'), anomalies=usePulseQuery('anomaly_trend'), runs=usePulseQuery('pipeline_runs');
   const mlRow = ml.data?.[0];
+  const trendRegions = [...new Set((trend.data||[]).map(r=>String(r.service_region)))];
+  const trendByDate = new Map<string, Record<string, unknown>>();
+  (trend.data||[]).forEach(r=>{const date=String(r.metric_date);const row=trendByDate.get(date)||{metric_date:date};row[String(r.service_region)]=Number(r.financial_impact_usd);trendByDate.set(date,row)});
+  const trendRows = [...trendByDate.values()].sort((a,b)=>String(a.metric_date).localeCompare(String(b.metric_date)));
+  const topAnomaly = anomalies.data?.[0];
+  const fmtDuration = (s: unknown) => {const n=Number(s||0); return n<60?`${n}s`:`${Math.floor(n/60)}m ${n%60}s`};
+  const runBadge = (state: unknown) => ['SUCCEEDED','COMPLETED'].includes(String(state))?'secondary':['FAILED','CANCELED'].includes(String(state))?'destructive':'outline';
   const cards=[ai.data?.[0]&&<Kpi key="ai" icon={<Bot/>} label="Pulse AI questions" value={number(ai.data[0].questions_7d)} detail="Last 7 days · app question log" change={ai.data[0].helpful_pct?`${number(ai.data[0].helpful_pct)}% helpful`:'No ratings yet'}/>,latency.data?.[0]&&<Kpi key="lat" icon={<Gauge/>} label="p95 query latency" value={`${number(latency.data[0].p95_s)} s`} detail="Last 7 days · SQL warehouse" change="system.query.history"/>,spend.data?.[0]&&<Kpi key="spend" icon={<WalletCards/>} label="Warehouse spend" value={`$${number(spend.data[0].usd_mtd)}`} detail="Month to date" change="system.billing"/>,mlRow&&<Kpi key="ml" icon={<Brain/>} label="Risk model test AUC" value={Number(mlRow.model_test_auc).toFixed(2)} detail={`${String(mlRow.model_type)} · v${String(mlRow.model_version)} · trained ${String(mlRow.trained_at).slice(0,10)}`} change={`${(Number(mlRow.model_test_accuracy)*100).toFixed(0)}% test accuracy`}/>].filter(Boolean);
   return <div className="pulse-shell">
     {cards.length>0&&<section className="kpi-grid">{cards}</section>}
@@ -123,6 +131,18 @@ function ObservabilityPage(){
 
     <Panel title="ML risk score vs. rule-based risk score" subtitle="Top assets by model-predicted outage-frequency probability">
       {predictions.loading?<Skeleton className="h-48"/>:predictions.error?<ErrorBox message={predictions.error}/>:!predictions.data?.length?<Empty><EmptyHeader><EmptyTitle>No predictions yet</EmptyTitle><EmptyDescription>Run the causal analysis notebook to populate this panel.</EmptyDescription></EmptyHeader></Empty>:<div className="table-wrap"><table><thead><tr><th>Asset</th><th>Region</th><th>Rule-based risk</th><th>ML predicted probability</th><th>Above-median outage frequency</th></tr></thead><tbody>{predictions.data.map(r=><tr key={String(r.asset_id)}><td><strong>{String(r.asset_id)}</strong></td><td>{String(r.service_region)}</td><td><span className={`risk ${String(r.rule_based_risk_band).toLowerCase()}`}>{String(r.rule_based_risk_band)} · {number(r.rule_based_risk_score)}</span></td><td>{(Number(r.predicted_probability)*100).toFixed(0)}%</td><td>{Number(r.actual_high_outage_frequency)?'Yes':'No'}</td></tr>)}</tbody></table></div>}
+    </Panel>
+
+    <Panel title="Financial exposure trend & anomaly detection" subtitle="Daily exposure by region, z-scored against each region's own mean; flagged points are ≥2 standard deviations out">
+      {trend.loading?<Skeleton className="h-64"/>:trend.error?<ErrorBox message={trend.error}/>:!trendRows.length?<Empty><EmptyHeader><EmptyTitle>No trend data</EmptyTitle><EmptyDescription>Verify gold_executive_kpis is populated.</EmptyDescription></EmptyHeader></Empty>:<>
+        <LineChart data={trendRows} xKey="metric_date" yKey={trendRegions} height={280} showLegend showSymbol={false} smooth={false} />
+        {anomalies.error ? <ErrorBox message={anomalies.error}/> : topAnomaly ? <div className="anomaly-note"><p><strong>{anomalies.data?.length} anomalies detected</strong> (|z| ≥ 2) in the trailing window. Largest: <b>{String(topAnomaly.service_region)}</b> on {String(topAnomaly.metric_date)} at {money(topAnomaly.financial_impact_usd)} (z={number(topAnomaly.z_score)}).</p><div className="table-wrap"><table><thead><tr><th>Date</th><th>Region</th><th>Exposure</th><th>Z-score</th></tr></thead><tbody>{anomalies.data?.map((r,i)=><tr key={i}><td>{String(r.metric_date)}</td><td>{String(r.service_region)}</td><td>{money(r.financial_impact_usd)}</td><td>{number(r.z_score)}</td></tr>)}</tbody></table></div></div> : <p className="anomaly-note">No days at or beyond 2 standard deviations in this window.</p>}
+      </>}
+    </Panel>
+
+    <Panel title="Pipeline & workflow orchestration" subtitle="Recent Lakeflow job and pipeline runs — system.lakeflow.job_run_timeline / pipeline_update_timeline">
+      {runs.loading?<Skeleton className="h-48"/>:runs.error?<ErrorBox message={runs.error}/>:!runs.data?.length?<Empty><EmptyHeader><EmptyTitle>No run history</EmptyTitle><EmptyDescription>Trigger the orchestrator job or pipeline to populate this panel.</EmptyDescription></EmptyHeader></Empty>:<div className="table-wrap"><table><thead><tr><th>Kind</th><th>Name</th><th>Status</th><th>Trigger</th><th>Duration</th><th>Finished</th></tr></thead><tbody>{runs.data.map((r,i)=><tr key={i}><td>{String(r.kind)}</td><td>{String(r.name)}</td><td><Badge variant={runBadge(r.result_state)}>{String(r.result_state||'RUNNING')}</Badge></td><td>{String(r.trigger_type)}</td><td>{fmtDuration(r.duration_seconds)}</td><td>{String(r.finished_at)}</td></tr>)}</tbody></table></div>}
+      <div className="ml-links"><a href={`${WORKSPACE_HOST}/pipelines/18d80e76-6049-44f6-a682-42d2a6f10d35`} target="_blank" rel="noreferrer"><GitBranch size={13}/> Open Lakeflow pipeline</a></div>
     </Panel>
 
     <Panel title="Genie AI usage" subtitle="Question volume and latency logged by the app; Genie's backing reasoning model is Databricks-managed and not exposed per-question via API">
