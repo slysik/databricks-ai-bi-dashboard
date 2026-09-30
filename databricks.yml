@@ -8,7 +8,7 @@ workspace:
 resources:
   apps:
     app:
-      name: app-pwb8
+      name: pulse-app
       description: "Pulse - AI-powered executive energy intelligence"
       source_code_path: .
       lifecycle:

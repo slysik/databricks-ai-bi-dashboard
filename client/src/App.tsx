@@ -38,7 +38,7 @@ import {
   ToggleGroupItem,
   Toaster,
 } from '@databricks/appkit-ui/react';
-import { Activity, BarChart3, Bot, Brain, Code2, ExternalLink, FileText, Filter, FlaskConical, Gauge, GitBranch, LayoutGrid, Pencil, RotateCcw, Settings, ShieldAlert, Users, WalletCards, Workflow, Zap } from 'lucide-react';
+import { Activity, BarChart3, Bot, Brain, Check, Code2, ExternalLink, FileText, Filter, FlaskConical, Gauge, GitBranch, LayoutGrid, Pencil, RotateCcw, Settings, ShieldAlert, ShieldCheck, Table2, Users, WalletCards, Workflow, Zap } from 'lucide-react';
 
 type QueryResult = Record<string, unknown>;
 function usePulseQuery(key: string, filters: Record<string, string> = {}) {
@@ -96,6 +96,15 @@ type ReportItem={item_id:string;visual_id:string;filters_json:string;title?:stri
 function ReportPage(){const {reportId}=useParams();const [items,setItems]=useState<ReportItem[]>();const [error,setError]=useState('');useEffect(()=>{fetch(`/api/reports/${reportId}/items`).then(r=>r.ok?r.json():Promise.reject(new Error('Report unavailable'))).then(setItems).catch(e=>setError(String(e)))},[reportId]);return <div className="pulse-shell"><div className="page-heading"><div><h2>Live governed report</h2><p>Every tile re-queries with its saved filters.</p></div><button disabled title="Coming soon">Export PDF</button></div>{!items&&!error?<Skeleton className="h-40"/>:error?<ErrorBox message={error}/>:!items?.length?<Empty><EmptyHeader><EmptyTitle>No visuals yet</EmptyTitle><EmptyDescription>Use Add to report on the Executive Dashboard.</EmptyDescription></EmptyHeader></Empty>:<div className="report-grid">{items.map(i=>i.visual_id.startsWith('genie_result')?<div className="report-genie-tile" key={i.item_id}><SavedGenieVisual item={i}/></div>:<SavedVisual key={i.item_id} item={i}/>)}</div>}</div>}
 function SavedVisual({item}:{item:ReportItem}){let filters:Record<string,string>={};try{filters=JSON.parse(item.filters_json||'{}')}catch{}const q=usePulseQuery('executive_summary',filters);const row=q.data?.[0];const value=item.visual_id.includes('reliability')?number(row?.reliability_score):item.visual_id.includes('peak_demand')?`${number(row?.peak_demand_mw)} MW`:item.visual_id.includes('customers')?number(row?.customers_affected):money(row?.financial_impact_usd);return <Panel title={item.title||item.visual_id.replaceAll('_',' ')} subtitle={`Saved filters: ${Object.values(filters).join(' · ')}`}>{q.loading?<Skeleton className="h-28"/>:q.error?<ErrorBox message={q.error}/>:!q.data?.length?<Empty><EmptyHeader><EmptyTitle>No data</EmptyTitle><EmptyDescription>Adjust the saved filters.</EmptyDescription></EmptyHeader></Empty>:<div className="val">{value}</div>}</Panel>}
 const WORKSPACE_HOST = 'https://dbc-61514402-8451.cloud.databricks.com';
+const APP_URL = 'https://app-pwb8-7474656067656578.aws.databricksapps.com/';
+const GENIE_SPACE_URL = `${WORKSPACE_HOST}/genie/rooms/01f1bc21135d1e4abfbbad97a44dae6f`;
+const WHATS_BUILT = [
+  {icon:<LayoutGrid size={16}/>, label:'AI/BI dashboard', detail:'Executive Dashboard', href:APP_URL},
+  {icon:<Bot size={16}/>, label:'Genie space', detail:'Ask Pulse AI', href:GENIE_SPACE_URL},
+  {icon:<Table2 size={16}/>, label:'KPI definitions', detail:'gold_executive_kpis schema', href:`${WORKSPACE_HOST}/explore/data/finserv/energy_pulse/gold_executive_kpis`},
+  {icon:<ShieldCheck size={16}/>, label:'Access controls', detail:'Unity Catalog permissions', href:`${WORKSPACE_HOST}/explore/data/finserv/energy_pulse/gold_executive_kpis?tab=permissions`},
+  {icon:<Workflow size={16}/>, label:'Lineage', detail:'Source-to-KPI trace', href:`${WORKSPACE_HOST}/explore/data/finserv/energy_pulse/gold_executive_kpis?tab=lineage`},
+];
 
 function ObservabilityPage(){
   const fresh=usePulseQuery('data_freshness'), ai=usePulseQuery('ai_usage'), latency=usePulseQuery('query_latency'), spend=usePulseQuery('warehouse_spend');
@@ -111,6 +120,9 @@ function ObservabilityPage(){
   const runBadge = (state: unknown) => ['SUCCEEDED','COMPLETED'].includes(String(state))?'secondary':['FAILED','CANCELED'].includes(String(state))?'destructive':'outline';
   const cards=[ai.data?.[0]&&<Kpi key="ai" icon={<Bot/>} label="Pulse AI questions" value={number(ai.data[0].questions_7d)} detail="Last 7 days · app question log" change={ai.data[0].helpful_pct?`${number(ai.data[0].helpful_pct)}% helpful`:'No ratings yet'}/>,latency.data?.[0]&&<Kpi key="lat" icon={<Gauge/>} label="p95 query latency" value={`${number(latency.data[0].p95_s)} s`} detail="Last 7 days · SQL warehouse" change="system.query.history"/>,spend.data?.[0]&&<Kpi key="spend" icon={<WalletCards/>} label="Warehouse spend" value={`$${number(spend.data[0].usd_mtd)}`} detail="Month to date" change="system.billing"/>,mlRow&&<Kpi key="ml" icon={<Brain/>} label="Risk model test AUC" value={Number(mlRow.model_test_auc).toFixed(2)} detail={`${String(mlRow.model_type)} · v${String(mlRow.model_version)} · trained ${String(mlRow.trained_at).slice(0,10)}`} change={`${(Number(mlRow.model_test_accuracy)*100).toFixed(0)}% test accuracy`}/>].filter(Boolean);
   return <div className="pulse-shell">
+    <Panel title="What was built" subtitle="One governed stack on Databricks — jump to each piece while demoing">
+      <div className="built-links">{WHATS_BUILT.map(b=><a key={b.label} href={b.href} target="_blank" rel="noreferrer" className="built-link">{b.icon}<span><strong>{b.label}</strong><small>{b.detail}</small></span><ExternalLink size={13}/></a>)}</div>
+    </Panel>
     {cards.length>0&&<section className="kpi-grid">{cards}</section>}
     {(ai.error||latency.error||spend.error)&&<Alert><AlertDescription>Some observability metrics are omitted because their backing tables are unavailable or not granted. No values are fabricated.</AlertDescription></Alert>}
 
@@ -283,7 +295,7 @@ function GenieVisualization({result, genieRef, initial}: {result: GenieResult; g
   const sortedRecords = isTimeSeries ? records.sort((a,b)=>String(a[category]).localeCompare(String(b[category]))) : [...records].sort((a,b)=>descending ? Number(b[measure])-Number(a[measure]) : Number(a[measure])-Number(b[measure]));
 
   const dashboardFilters = {conversationId: genieRef?.conversationId, messageId: genieRef?.messageId, attachmentId: genieRef?.attachmentId, question: result.question, sql: result.sql, description: result.description, chart, category, measure, descending};
-  return <section className="viz-card overflow-hidden"><div className="viz-head"><div><span className="viz-kicker"><BarChart3 size={15}/> GENIE VISUAL</span><h3>{findingTitle}</h3></div><div className="viz-actions">{genieRef && <PinVisual visualId={`genie_result:${genieRef.conversationId}:${genieRef.messageId}:${genieRef.attachmentId}`} title={findingTitle} filters={dashboardFilters} label="＋ Add to Dashboard"/>}<button onClick={()=>setShowSql(!showSql)}><Code2 size={15}/> SQL</button><button onClick={()=>setEditing(!editing)}><Pencil size={15}/> Edit visualization</button></div></div>
+  return <section className="viz-card overflow-hidden"><div className="viz-head"><div><span className="viz-kicker"><BarChart3 size={15}/> GENIE VISUAL</span><h3>{findingTitle}</h3></div><div className="viz-actions">{genieRef && <PinVisual visualId={`genie_result:${genieRef.conversationId}:${genieRef.messageId}:${genieRef.attachmentId}`} title={findingTitle} filters={dashboardFilters}/>}<button onClick={()=>setShowSql(!showSql)}><Code2 size={15}/> SQL</button><button onClick={()=>setEditing(!editing)}><Pencil size={15}/> Edit visualization</button></div></div>
     {editing && <div className="viz-editor"><label>Chart<select value={chart} onChange={e=>setChart(e.target.value)}><option value="bar">Bar</option><option value="line">Line</option><option value="area">Area</option><option value="pie">Pie</option><option value="donut">Donut</option><option value="scatter">Scatter</option><option value="table">Table</option></select></label><label>Category<select value={category} onChange={e=>setCategory(e.target.value)}>{columns.map(c=><option key={c}>{c}</option>)}</select></label><label>Measure<select value={measure} onChange={e=>setMeasure(e.target.value)}>{numeric.map(c=><option key={c}>{c}</option>)}</select></label>{!isTimeSeries && <label>Sort<select value={descending?'desc':'asc'} onChange={e=>setDescending(e.target.value==='desc')}><option value="desc">High to low</option><option value="asc">Low to high</option></select></label>}</div>}
     {showSql && <pre className="sql-block">{result.sql}</pre>}
     {!rows.length ? <Empty><EmptyHeader><EmptyTitle>No chartable result</EmptyTitle><EmptyDescription>Refine the question or inspect the generated SQL.</EmptyDescription></EmptyHeader></Empty> : chart === 'table' ? <div className="table-wrap"><table><thead><tr>{columns.map(c=><th key={c}>{c.replaceAll('_',' ')}</th>)}</tr></thead><tbody>{rows.map((r,i)=><tr key={i}>{r.map((v,j)=><td key={j}>{String(v ?? '')}</td>)}</tr>)}</tbody></table></div> : isTimeSeries && demandMetric ? <div className="time-series-grid"><div><h4>Daily peak demand by service region</h4><LineChart data={pivot(demandMetric)} xKey={dateColumn} yKey={seriesKeys(demandMetric)} height={300} showLegend showSymbol={false} smooth={false} /></div>{temperatureMetric && <div><h4>Average temperature by service region</h4><LineChart data={pivot(temperatureMetric)} xKey={dateColumn} yKey={seriesKeys(temperatureMetric)} height={300} showLegend showSymbol={false} smooth={false} /></div>}</div> : chart === 'line' ? <LineChart data={sortedRecords} xKey={category} yKey={measure} height={340} showLegend /> : chart === 'area' ? <AreaChart data={sortedRecords} xKey={category} yKey={measure} height={340} showLegend /> : chart === 'pie' ? <PieChart data={sortedRecords} xKey={category} yKey={measure} height={340} showLegend /> : chart === 'donut' ? <DonutChart data={sortedRecords} xKey={category} yKey={measure} height={340} showLegend /> : chart === 'scatter' ? <ScatterChart data={sortedRecords} xKey={category} yKey={measure} height={340} showLegend /> : <BarChart data={sortedRecords} xKey={category} yKey={measure} height={340} showLegend orientation="vertical" />}
@@ -315,14 +327,15 @@ function Kpi({icon, label, value, detail, change, tone = 'neutral',visualId,filt
   return <article className={`kpi ${tone}`}><div className="kpi-actions">{askQuestion&&<NavLink className="ask-genie-button" to={`/ask?q=${encodeURIComponent(askQuestion)}`} title="Ask Genie about this KPI"><Bot size={13}/></NavLink>}{visualId&&<PinVisual visualId={visualId} title={label} filters={filters||{}}/>}</div><div className="kpi-icon">{icon}</div><p>{label}</p><strong className="whitespace-nowrap">{value}</strong><Badge variant="outline" className="kpi-change">{change}</Badge><Sparkline values={trend} target={target} danger={tone==='danger'}/><small>{detail}</small></article>;
 }
 
-function PinVisual({visualId,title,filters,label='＋ Add to Dashboard'}:{visualId:string;title:string;filters:Record<string,unknown>;label?:string}){
+function PinVisual({visualId,title,filters}:{visualId:string;title:string;filters:Record<string,unknown>}){
   const [state,setState]=useState<'idle'|'busy'|'added'|'error'>('idle');
   async function add(){
     setState('busy');
     try{const r=await fetch('/api/dashboard/add',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({visualId,title,filters})});if(!r.ok)throw new Error('Failed');setState('added')}
     catch{setState('error')}
   }
-  return <div className="pin-wrap"><button className="pin-button" onClick={add} disabled={state==='busy'||state==='added'}>{state==='added'?'✓ Added to Dashboard':state==='busy'?'Adding…':state==='error'?'Retry':label}</button></div>;
+  const titleText=state==='added'?'Added to Dashboard':state==='busy'?'Adding…':state==='error'?'Failed to add — retry':'Add to dashboard';
+  return <button className={`pin-button icon-only ${state}`} onClick={add} disabled={state==='busy'||state==='added'} title={titleText} aria-label={titleText}>{state==='added'?<Check size={15}/>:state==='error'?<RotateCcw size={15}/>:<LayoutGrid size={15}/>}</button>;
 }
 
 function Panel({title, subtitle, children}: {title: string; subtitle: string; children: React.ReactNode}) {

@@ -17,6 +17,27 @@ const json = (res, value, status = 200) => {
   res.end(body);
 };
 
+let cachedSpToken;
+async function getServicePrincipalToken() {
+  if (cachedSpToken && cachedSpToken.expiresAt > Date.now() + 30000) return cachedSpToken.value;
+  const clientId = process.env.DATABRICKS_CLIENT_ID;
+  const clientSecret = process.env.DATABRICKS_CLIENT_SECRET;
+  if (!clientId || !clientSecret) return '';
+  const response = await fetch(`${host}/oidc/v1/token`, {
+    method: 'POST',
+    headers: {
+      authorization: `Basic ${Buffer.from(`${clientId}:${clientSecret}`).toString('base64')}`,
+      'content-type': 'application/x-www-form-urlencoded',
+    },
+    body: new URLSearchParams({grant_type: 'client_credentials', scope: 'all-apis'}),
+  });
+  const raw = await response.text();
+  const payload = raw ? JSON.parse(raw) : {};
+  if (!response.ok) throw new Error(payload.error_description || payload.error || `OIDC token ${response.status}`);
+  cachedSpToken = {value: payload.access_token, expiresAt: Date.now() + (Number(payload.expires_in || 3600) * 1000)};
+  return cachedSpToken.value;
+}
+
 async function api(path, token, method = 'GET', body) {
   const response = await fetch(`${host}${path}`, {
     method,
@@ -24,8 +45,10 @@ async function api(path, token, method = 'GET', body) {
     body: body === undefined ? undefined : JSON.stringify(body),
     signal: AbortSignal.timeout(120000),
   });
-  const payload = await response.json();
-  if (!response.ok) throw new Error(payload.message || payload.error || `Databricks API ${response.status}`);
+  const raw = await response.text();
+  let payload;
+  try { payload = raw ? JSON.parse(raw) : {}; } catch { payload = {message: raw}; }
+  if (!response.ok) throw new Error(payload.message || payload.error || raw || `Databricks API ${response.status}`);
   return payload;
 }
 
@@ -83,9 +106,15 @@ async function handleReports(req,res,url,token){
   const chunks=[];for await(const c of req)chunks.push(c);const body=chunks.length?JSON.parse(Buffer.concat(chunks).toString('utf8')):{};
   if(req.method==='POST'&&!id){const rid=crypto.randomUUID();await executeSql(`INSERT INTO finserv.pulse_app.reports VALUES (${sqlString(rid)},${sqlString(owner)},${sqlString(body.name||'Untitled report')},'',current_timestamp(),current_timestamp())`,token);return json(res,{report_id:rid,name:body.name||'Untitled report'},201);}
   if(req.method==='GET'&&id&&parts[3]==='items'){const r=await executeSql(`SELECT item_id,visual_id,filters_json,title,position FROM finserv.pulse_app.report_items WHERE owner_email=${sqlString(owner)} AND report_id=${sqlString(id)} ORDER BY position`,token);return json(res,r.rows.map(x=>Object.fromEntries(r.columns.map((c,i)=>[c,x[i]]))));}
-  if(req.method==='POST'&&id&&parts[3]==='items'){const iid=crypto.randomUUID();await executeSql(`INSERT INTO finserv.pulse_app.report_items VALUES (${sqlString(iid)},${sqlString(id)},${sqlString(owner)},${sqlString(body.visualId)},${sqlString(JSON.stringify(body.filters||{}))},${sqlString(body.title||'')},COALESCE((SELECT MAX(position)+1 FROM finserv.pulse_app.report_items WHERE report_id=${sqlString(id)}),0),current_timestamp())`,token);return json(res,{item_id:iid},201);}
+  if(req.method==='POST'&&id&&parts[3]==='items'){const iid=crypto.randomUUID();const position=await nextItemPosition(id,token);await executeSql(`INSERT INTO finserv.pulse_app.report_items VALUES (${sqlString(iid)},${sqlString(id)},${sqlString(owner)},${sqlString(body.visualId)},${sqlString(JSON.stringify(body.filters||{}))},${sqlString(body.title||'')},${position},current_timestamp())`,token);return json(res,{item_id:iid},201);}
   if(req.method==='DELETE'&&id&&parts[3]==='items'&&parts[4]){await executeSql(`DELETE FROM finserv.pulse_app.report_items WHERE owner_email=${sqlString(owner)} AND report_id=${sqlString(id)} AND item_id=${sqlString(parts[4])}`,token);return json(res,{ok:true});}
   return json(res,{error:'Unsupported reports operation'},405);
+}
+
+async function nextItemPosition(reportId,token){
+  const r=await executeSql(`SELECT MAX(position) FROM finserv.pulse_app.report_items WHERE report_id=${sqlString(reportId)}`,token);
+  const max=r.rows[0]?.[0];
+  return max===null||max===undefined?0:Number(max)+1;
 }
 
 async function handleDashboardAdd(req,res,token){
@@ -95,7 +124,8 @@ async function handleDashboardAdd(req,res,token){
   let reportId=existing.rows[0]?.[0];
   if(!reportId){reportId=crypto.randomUUID();await executeSql(`INSERT INTO finserv.pulse_app.reports VALUES (${sqlString(reportId)},${sqlString(owner)},'My Dashboard','',current_timestamp(),current_timestamp())`,token);}
   const itemId=crypto.randomUUID();
-  await executeSql(`INSERT INTO finserv.pulse_app.report_items VALUES (${sqlString(itemId)},${sqlString(reportId)},${sqlString(owner)},${sqlString(body.visualId)},${sqlString(JSON.stringify(body.filters||{}))},${sqlString(body.title||'')},COALESCE((SELECT MAX(position)+1 FROM finserv.pulse_app.report_items WHERE report_id=${sqlString(reportId)}),0),current_timestamp())`,token);
+  const position=await nextItemPosition(reportId,token);
+  await executeSql(`INSERT INTO finserv.pulse_app.report_items VALUES (${sqlString(itemId)},${sqlString(reportId)},${sqlString(owner)},${sqlString(body.visualId)},${sqlString(JSON.stringify(body.filters||{}))},${sqlString(body.title||'')},${position},current_timestamp())`,token);
   return json(res,{report_id:reportId,item_id:itemId},201);
 }
 
@@ -165,7 +195,7 @@ async function handleFeedback(req,res,token){await ensureAppTables(token);const 
 createServer(async (req, res) => {
   try {
     const url = new URL(req.url || '/', 'http://localhost');
-    const token = req.headers['x-forwarded-access-token'] || process.env.DATABRICKS_TOKEN || '';
+    const token = process.env.DATABRICKS_TOKEN || await getServicePrincipalToken() || req.headers['x-forwarded-access-token'] || '';
     if (req.method === 'GET' && url.pathname.startsWith('/api/query/')) return await handleQuery(req, res, url, token);
     if (req.method === 'POST' && url.pathname === '/api/genie') return await handleGenie(req, res, token);
     if (req.method === 'GET' && url.pathname === '/api/genie/query-result') return await handleGenieReplay(req, res, url, token);
@@ -180,6 +210,7 @@ createServer(async (req, res) => {
     res.writeHead(200, {'content-type': contentType(target), 'content-length': payload.length});
     res.end(payload);
   } catch (error) {
+    console.error('REQUEST_ERROR', req.url, error instanceof Error ? error.message : String(error));
     json(res, {error: error instanceof Error ? error.message : String(error)}, 500);
   }
 }).listen(Number(process.env.DATABRICKS_APP_PORT || 8000), '0.0.0.0');
