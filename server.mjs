@@ -88,6 +88,17 @@ async function handleReports(req,res,url,token){
   return json(res,{error:'Unsupported reports operation'},405);
 }
 
+async function handleDashboardAdd(req,res,token){
+  await ensureAppTables(token); const owner=ownerOf(req);
+  const chunks=[];for await(const c of req)chunks.push(c);const body=JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  const existing=await executeSql(`SELECT report_id FROM finserv.pulse_app.reports WHERE owner_email=${sqlString(owner)} AND name='My Dashboard' LIMIT 1`,token);
+  let reportId=existing.rows[0]?.[0];
+  if(!reportId){reportId=crypto.randomUUID();await executeSql(`INSERT INTO finserv.pulse_app.reports VALUES (${sqlString(reportId)},${sqlString(owner)},'My Dashboard','',current_timestamp(),current_timestamp())`,token);}
+  const itemId=crypto.randomUUID();
+  await executeSql(`INSERT INTO finserv.pulse_app.report_items VALUES (${sqlString(itemId)},${sqlString(reportId)},${sqlString(owner)},${sqlString(body.visualId)},${sqlString(JSON.stringify(body.filters||{}))},${sqlString(body.title||'')},COALESCE((SELECT MAX(position)+1 FROM finserv.pulse_app.report_items WHERE report_id=${sqlString(reportId)}),0),current_timestamp())`,token);
+  return json(res,{report_id:reportId,item_id:itemId},201);
+}
+
 async function handleGenie(req, res, token) {
   const requestStarted = Date.now();
   const chunks = [];
@@ -158,6 +169,7 @@ createServer(async (req, res) => {
     if (req.method === 'GET' && url.pathname.startsWith('/api/query/')) return await handleQuery(req, res, url, token);
     if (req.method === 'POST' && url.pathname === '/api/genie') return await handleGenie(req, res, token);
     if (req.method === 'GET' && url.pathname === '/api/genie/query-result') return await handleGenieReplay(req, res, url, token);
+    if (req.method === 'POST' && url.pathname === '/api/dashboard/add') return await handleDashboardAdd(req,res,token);
     if (url.pathname.startsWith('/api/reports')) return await handleReports(req,res,url,token);
     if (url.pathname==='/api/settings') return await handleSettings(req,res,token);
     if (req.method==='POST'&&url.pathname==='/api/feedback') return await handleFeedback(req,res,token);

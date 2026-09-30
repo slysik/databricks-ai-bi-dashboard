@@ -315,7 +315,15 @@ function Kpi({icon, label, value, detail, change, tone = 'neutral',visualId,filt
   return <article className={`kpi ${tone}`}><div className="kpi-actions">{askQuestion&&<NavLink className="ask-genie-button" to={`/ask?q=${encodeURIComponent(askQuestion)}`} title="Ask Genie about this KPI"><Bot size={13}/></NavLink>}{visualId&&<PinVisual visualId={visualId} title={label} filters={filters||{}}/>}</div><div className="kpi-icon">{icon}</div><p>{label}</p><strong className="whitespace-nowrap">{value}</strong><Badge variant="outline" className="kpi-change">{change}</Badge><Sparkline values={trend} target={target} danger={tone==='danger'}/><small>{detail}</small></article>;
 }
 
-function PinVisual({visualId,title,filters,label='＋ Add'}:{visualId:string;title:string;filters:Record<string,unknown>;label?:string}){const [reports,setReports]=useState<Report[]>();const [open,setOpen]=useState(false);const [added,setAdded]=useState(false);useEffect(()=>{if(open&&!reports)fetch('/api/reports').then(r=>r.ok?r.json():[]).then(setReports)},[open,reports]);async function add(id:string){await fetch(`/api/reports/${id}/items`,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({visualId,title,filters})});setOpen(false);setAdded(true)}return <div className="pin-wrap"><button className="pin-button" onClick={()=>setOpen(!open)}>{added?'✓ Added':label}</button>{open&&<div className="pin-menu">{reports?.length?reports.map(r=><button key={r.report_id} onClick={()=>add(r.report_id)}>{r.name}</button>):<NavLink to="/reports">Create a report first</NavLink>}</div>}</div>}
+function PinVisual({visualId,title,filters,label='＋ Add to Dashboard'}:{visualId:string;title:string;filters:Record<string,unknown>;label?:string}){
+  const [state,setState]=useState<'idle'|'busy'|'added'|'error'>('idle');
+  async function add(){
+    setState('busy');
+    try{const r=await fetch('/api/dashboard/add',{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify({visualId,title,filters})});if(!r.ok)throw new Error('Failed');setState('added')}
+    catch{setState('error')}
+  }
+  return <div className="pin-wrap"><button className="pin-button" onClick={add} disabled={state==='busy'||state==='added'}>{state==='added'?'✓ Added to Dashboard':state==='busy'?'Adding…':state==='error'?'Retry':label}</button></div>;
+}
 
 function Panel({title, subtitle, children}: {title: string; subtitle: string; children: React.ReactNode}) {
   return <section className="panel"><div className="panel-head"><div><h3>{title}</h3><p>{subtitle}</p></div></div>{children}</section>;
